@@ -1,26 +1,152 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #efece2;
+  --ink: #17382d;
+  --muted: #7c8a82;
+  --line: rgba(23, 56, 45, 0.08);
+  --primary: #123b30;
+  --primary-deep: #0c2b23;
+  --primary-soft: #e3ede7;
+  --gold: #d9b366;
+  --gold-strong: #b18a3e;
+  --gold-soft: #f5efe0;
+  --danger: #c0392b;
+  --danger-soft: #fbeae7;
+  --success: #2e7d4f;
+  --success-soft: #e6f2ea;
+}
+
+.dark {
+  --bg: #0c1512;
+  --surface: #13201a;
+  --surface-2: #1b2c24;
+  --ink: #e8efe9;
+  --muted: #9aa89f;
+  --line: rgba(232, 239, 233, 0.1);
+  --primary: #164a3a;
+  --primary-deep: #0e3529;
+  --primary-soft: #1c3a30;
+  --gold: #d9b366;
+  --gold-strong: #c9a35a;
+  --gold-soft: #2b2518;
+  --danger: #e06052;
+  --danger-soft: #3a211e;
+  --success: #4d9e70;
+  --success-soft: #1c352a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-deep: var(--primary-deep);
+  --color-primary-soft: var(--primary-soft);
+  --color-gold: var(--gold);
+  --color-gold-strong: var(--gold-strong);
+  --color-gold-soft: var(--gold-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --font-sans: var(--font-cairo);
+  --font-mono: var(--font-cairo);
+  --font-quran: var(--font-quran-var);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-cairo), "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--primary-deep);
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-2);
+  border-radius: 9999px;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.28s ease both;
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }

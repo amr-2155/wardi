@@ -1,0 +1,223 @@
+{
+  "version": "1.0.0",
+  "reviewedBy": "manual thematic review",
+  "note": "Relations describe thematic/topical connection only, never a claim that verses are linguistically synonymous. Every reference is validated against the canonical dataset. No AI-generated relation is included.",
+  "entries": [
+    {
+      "sourceAyah": "2:153",
+      "topic": "الصبر",
+      "relatedAyahs": [
+        { "ayah": "2:155", "relationType": "theme", "reason": "سياق الصبر عند البلاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:156", "relationType": "theme", "reason": "سياق الصبر عند البلاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "3:200", "relationType": "theme", "reason": "الأمر بالصبر والمصابرة", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "2:155",
+      "topic": "الابتلاء والصبر",
+      "relatedAyahs": [
+        { "ayah": "2:153", "relationType": "theme", "reason": "الصبر والاستعانة عند البلاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:157", "relationType": "theme", "reason": "بشرى الصابرين عند الابتلاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "3:186", "relationType": "theme", "reason": "الابتلاء في النفس والمال", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "2:186",
+      "topic": "الدعاء",
+      "relatedAyahs": [
+        { "ayah": "40:60", "relationType": "related_dua", "reason": "أمر الله بالدعاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:152", "relationType": "related_dua", "reason": "الذكر والدعاء وأثره", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "27:62", "relationType": "related_dua", "reason": "استجابة دعوة المضطر", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "2:255",
+      "topic": "التوحيد",
+      "relatedAyahs": [
+        { "ayah": "3:2", "relationType": "related_attribute", "reason": "إثبات أن الله الحي القيوم", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:163", "relationType": "related_attribute", "reason": "إله واحد لا إله إلا هو", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:256", "relationType": "theme", "reason": "لا إكراه في الدين بعد بيان الحق", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "2:286",
+      "topic": "الدعاء والتكليف",
+      "relatedAyahs": [
+        { "ayah": "65:7", "relationType": "same_concept", "reason": "التكليف على قدر وسع النفس", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "94:5", "relationType": "related_promise", "reason": "مع العسر يسرًا", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "94:6", "relationType": "related_promise", "reason": "تأكيد أن مع العسر يسرًا", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "3:200",
+      "topic": "الصبر",
+      "relatedAyahs": [
+        { "ayah": "2:153", "relationType": "theme", "reason": "الصبر مع الاستعانة بالله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:45", "relationType": "theme", "reason": "الاستعانة بالصبر والصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:46", "relationType": "theme", "reason": "الخشية واليقين بلقاء الله", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "13:28",
+      "topic": "القـلوب",
+      "relatedAyahs": [
+        { "ayah": "8:24", "relationType": "theme", "reason": "استجابة القلب للحق وذكر الله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "57:16", "relationType": "theme", "reason": "خشوع القلوب لذكر الله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "26:89", "relationType": "theme", "reason": "القلب السليم عند الله", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "14:7",
+      "topic": "الشكر",
+      "relatedAyahs": [
+        { "ayah": "2:152", "relationType": "related_promise", "reason": "الذكر والشكر يزيد الأثر", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:172", "relationType": "same_concept", "reason": "الشكر على الرزق الحلال", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "16:18", "relationType": "related_promise", "reason": "عجز الإنسان عن إحصاء النعم", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "17:23",
+      "topic": "الوالدين",
+      "relatedAyahs": [
+        { "ayah": "17:24", "relationType": "same_concept", "reason": "الرفق والدعاء للوالدين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "31:14", "relationType": "same_concept", "reason": "الوصية بالوالدين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "46:15", "relationType": "same_concept", "reason": "بر الوالدين وطول الثقل", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "21:107",
+      "topic": "الرحمة",
+      "relatedAyahs": [
+        { "ayah": "7:156", "relationType": "related_attribute", "reason": "رحمة الله وسعت كل شيء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "6:54", "relationType": "related_attribute", "reason": "كتب ربكم على نفسه الرحمة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "6:12", "relationType": "related_attribute", "reason": "كتب على نفسه الرحمة", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "23:1",
+      "topic": "الصلاة",
+      "relatedAyahs": [
+        { "ayah": "23:2", "relationType": "same_concept", "reason": "الخشوع في الصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "20:14", "relationType": "same_concept", "reason": "إقامة الصلاة لذكر الله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "29:45", "relationType": "same_concept", "reason": "الصلاة تنهى عن الفحشاء والمنكر", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "24:32",
+      "topic": "الزواج",
+      "relatedAyahs": [
+        { "ayah": "30:21", "relationType": "same_concept", "reason": "السكن والمودة في الزواج", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "25:74", "relationType": "related_dua", "reason": "الدعاء بالذرية والزوجات الطيبة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "4:4", "relationType": "theme", "reason": "الحقوق المالية في الزواج", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "25:74",
+      "topic": "الزواج والأسرة",
+      "relatedAyahs": [
+        { "ayah": "30:21", "relationType": "theme", "reason": "المودة والرحمة بين الزوجين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "24:32", "relationType": "theme", "reason": "أمر الأولياء بتزويج الصالحين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "17:24", "relationType": "theme", "reason": "الدعاء بالرحمة للأهل", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "29:45",
+      "topic": "الصلاة",
+      "relatedAyahs": [
+        { "ayah": "2:45", "relationType": "same_concept", "reason": "الاستعانة بالصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "23:2", "relationType": "same_concept", "reason": "الخشوع في الصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "87:14", "relationType": "same_concept", "reason": "الفلاح لمن أقام الصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "30:21",
+      "topic": "الزواج",
+      "relatedAyahs": [
+        { "ayah": "24:32", "relationType": "same_concept", "reason": "أمر التزويج بين المؤمنين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "25:74", "relationType": "related_dua", "reason": "دعاء أصحاب المودة والرحمة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "30:22", "relationType": "theme", "reason": "من آيات الله في خلق البشر", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "31:14",
+      "topic": "الوالدين",
+      "relatedAyahs": [
+        { "ayah": "17:23", "relationType": "same_concept", "reason": "الإحسان للوالدين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "46:15", "relationType": "same_concept", "reason": "الوصية بالوالدين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "29:8", "relationType": "same_concept", "reason": "الوصية بالوالدين مع عدم الطاعة في المعصية", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "39:53",
+      "topic": "التوبة والرحمة",
+      "relatedAyahs": [
+        { "ayah": "2:160", "relationType": "related_promise", "reason": "قبول التوبة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "66:8", "relationType": "related_promise", "reason": "التوبة النصوح", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "25:70", "relationType": "related_promise", "reason": "تبديل السيئات حسنات بالتوبة", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "40:60",
+      "topic": "الدعاء",
+      "relatedAyahs": [
+        { "ayah": "2:186", "relationType": "related_dua", "reason": "قرب الله من الداعي", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:152", "relationType": "related_dua", "reason": "اذكروني أذكركم", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "27:62", "relationType": "related_dua", "reason": "استجابة دعوة المضطر", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "51:22",
+      "topic": "الرزق",
+      "relatedAyahs": [
+        { "ayah": "11:6", "relationType": "related_promise", "reason": "تضمن الله الرزق", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "29:62", "relationType": "related_promise", "reason": "بسط الله الرزق لمن يشاء", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "65:3", "relationType": "related_promise", "reason": "يرزقه من حيث لا يحتسب", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "65:3",
+      "topic": "التوكل والرزق",
+      "relatedAyahs": [
+        { "ayah": "3:159", "relationType": "same_concept", "reason": "التوكل على الله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "14:11", "relationType": "same_concept", "reason": "التوكل على الله وحده", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "11:6", "relationType": "related_promise", "reason": "ضمان الرزق", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "67:2",
+      "topic": "الابتلاء والحياة",
+      "relatedAyahs": [
+        { "ayah": "21:35", "relationType": "theme", "reason": "ابتلاء النفس بالموت والحياة", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "29:2", "relationType": "theme", "reason": "يُبتلى المؤمن ليعلم صدقه", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:155", "relationType": "theme", "reason": "البلاء في النفس والمال والثمرات", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "71:10",
+      "topic": "الاستغفار",
+      "relatedAyahs": [
+        { "ayah": "11:3", "relationType": "related_promise", "reason": "الاستغفار يجلب الرزق", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "42:5", "relationType": "related_promise", "reason": "الاستغفار لمن في الأرض", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "3:135", "relationType": "related_dua", "reason": "الاستغفار بعد المعصية", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "87:14",
+      "topic": "الصلاة والفلاح",
+      "relatedAyahs": [
+        { "ayah": "20:14", "relationType": "same_concept", "reason": "إقامة الصلاة لذكر الله", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "23:1", "relationType": "same_concept", "reason": "فلاح المؤمنين المصلين", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "87:15", "relationType": "same_concept", "reason": "ذكر الله والصلاة", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    },
+    {
+      "sourceAyah": "94:5",
+      "topic": "العسر واليسر",
+      "relatedAyahs": [
+        { "ayah": "94:6", "relationType": "same_concept", "reason": "تأكيد المعية: مع العسر يسرًا", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "65:7", "relationType": "related_promise", "reason": "سيجعل الله بعد عسر يسرًا", "verified": true, "source": "مراجعة موضوعية يدوية" },
+        { "ayah": "2:286", "relationType": "related_promise", "reason": "لا يكلف الله نفسًا إلا وسعها", "verified": true, "source": "مراجعة موضوعية يدوية" }
+      ]
+    }
+  ]
+}
