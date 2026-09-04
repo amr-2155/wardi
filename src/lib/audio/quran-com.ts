@@ -44,6 +44,8 @@ import type {
   AudioTrackQueue,
 } from "./types";
 
+import { resilientFetch } from "../net/resilient-fetch";
+
 const API_BASE = "https://api.quran.com/api/v4";
 const AUDIO_CDN_BASE = "https://audio.qurancdn.com";
 
@@ -264,7 +266,14 @@ export function buildVerseUrl(
 }
 
 async function quranComFetch(path: string): Promise<unknown> {
-  const res = await fetch(`${API_BASE}${path}`);
+  // Metadata only (reciter list, verse audio URLs). Audio bytes stream
+  // through HTMLAudio and are intentionally NOT piped through here.
+  // Timeout + retry come from the shared resilient-fetch layer; the
+  // !ok contract below is preserved for existing callers.
+  const res = await resilientFetch(`${API_BASE}${path}`, {
+    timeoutMs: 10000,
+    retries: 2,
+  });
   if (!res.ok) {
     throw new Error(`Quran.com API error: ${res.status} ${res.statusText}`);
   }

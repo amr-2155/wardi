@@ -23,8 +23,9 @@ export function SurahListView({
     currentSurah,
     currentReciter,
     currentTrack,
+    resumePosition,
     player,
-    actions: { loadSurah, pause },
+    actions: { loadSurah, pause, resume },
   } = useAudioPlayer();
 
   // Auto-load the last-played surah from settings if no surah is loaded yet.
@@ -63,6 +64,26 @@ export function SurahListView({
         </div>
         <div className="w-10" /> {/* spacer for centering */}
       </div>
+
+      {/* Resume banner — saved fail-stop position (manual resume only) */}
+      {resumePosition && !currentTrack && (
+        <button
+          type="button"
+          onClick={() => void resume()}
+          aria-label={t("audio.resume")}
+          className="flex items-center justify-between gap-2 rounded-xl border border-gold/30 bg-primary-soft p-2.5 text-right"
+        >
+          <span className="flex-1 text-xs font-black text-ink">
+            {t("audio.resumeLabel", {
+              surah:
+                surahs.find((s) => s.number === resumePosition.surah)?.name ??
+                "",
+              ayah: resumePosition.ayah,
+            })}
+          </span>
+          <Play size={14} className="shrink-0 text-gold-strong" />
+        </button>
+      )}
 
       {/* Surah list */}
       <div className="flex flex-col gap-0.5">

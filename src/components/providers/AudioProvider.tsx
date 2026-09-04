@@ -14,8 +14,17 @@ import { useAudio, type UseAudioResult } from "@/hooks/useAudio";
 import {
   loadAudioSettings,
   saveAudioSettings,
+  loadAudioResume,
+  saveAudioResume,
+  clearAudioResume,
   type AudioSettings,
+  type AudioResumePosition,
 } from "@/lib/audio/storage";
+import { isOnline } from "@/lib/net/connectivity";
+import {
+  nextVerseIndex,
+  resolveVerseFailureOutcome,
+} from "@/lib/audio/playback";
 
 export interface AudioPlayerState {
   /** Currently selected reciter (null if none selected) */
@@ -26,6 +35,8 @@ export interface AudioPlayerState {
   recitersLoading: boolean;
   /** Error from fetching reciters or audio */
   error: string | null;
+  /** Saved position for manual resume after a fail-stop (null if none) */
+  resumePosition: AudioResumePosition | null;
   /** The AudioTrack currently loaded (if any) */
   currentTrack: AudioTrack | null;
   /** All available reciters (populated after loadReciters) */
@@ -40,7 +51,7 @@ export interface AudioPlayerActions {
   /** Select a reciter by ID. */
   selectReciter: (reciterId: string) => Promise<void>;
   /** Load and prepare a surah for playback. */
-  loadSurah: (surah: number) => Promise<void>;
+  loadSurah: (surah: number, startAyah?: number) => Promise<void>;
   /** Play the loaded track. */
   play: () => void;
   /** Pause playback. */
@@ -59,6 +70,8 @@ export interface AudioPlayerActions {
   unmute: () => void;
   /** Clear everything and stop playback. */
   reset: () => void;
+  /** Resume from the saved fail-stop position (if any). */
+  resume: () => void;
 }
 
 export type AudioPlayerContextValue = AudioPlayerState & {
@@ -82,6 +95,11 @@ export function useAudioPlayer(): AudioPlayerContextValue {
 
 const SURAH_COUNT = 114;
 
+// Message shown when a verse fails while the browser reports offline.
+// The saved position lets the user resume manually once reconnected.
+const OFFLINE_VERSE_MSG =
+  "يبدو أنك غير متصل بالإنترنت. تم حفظ موضعك — تحقق من الاتصال ثم استأنف يدويًا.";
+
 export function AudioPlayerProvider({
   children,
 }: {
@@ -100,6 +118,9 @@ export function AudioPlayerProvider({
   const [currentSurah, setCurrentSurah] = useState<AudioSurah | null>(null);
   const [currentTrack, setCurrentTrack] = useState<AudioTrack | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Saved resume position for manual resume after a fail-stop (survives reload)
+  const [resumePosition, setResumePosition] =
+    useState<AudioResumePosition | null>(() => loadAudioResume());
 
   // --- Settings persistence ---
   const [settings, setSettings] = useState<AudioSettings>(() =>
@@ -120,6 +141,25 @@ export function AudioPlayerProvider({
   const verseQueueRef = useRef<AudioTrackQueue | null>(null);
   const currentVerseIndexRef = useRef(0);
   const playerRef = useRef<UseAudioResult | null>(null);
+  // Per-verse retry budget for fail-stop handling (reset on every new track)
+  const verseRetryRef = useRef<{ url: string; retried: boolean }>({
+    url: "",
+    retried: false,
+  });
+
+  // Persist a resume position (saved verse) for manual resume.
+  // Called on every verse advance and on every verse failure; cleared
+  // ONLY when a surah genuinely completes.
+  const persistResume = useCallback(
+    (surah: number, ayah: number) => {
+      const reciterId = settings.selectedReciter;
+      if (!reciterId) return;
+      const pos: AudioResumePosition = { surah, ayah, reciterId };
+      saveAudioResume(pos);
+      setResumePosition(pos);
+    },
+    [settings.selectedReciter]
+  );
 
   // onEnded callback for verse-to-verse transition
   const handleVerseEnded = useCallback(() => {
@@ -130,21 +170,27 @@ export function AudioPlayerProvider({
       return;
     }
 
-    const nextIndex = currentVerseIndexRef.current + 1;
-    if (nextIndex < queue.tracks.length) {
+    const nextIndex = nextVerseIndex(
+      queue.tracks.length,
+      currentVerseIndexRef.current
+    );
+    if (nextIndex !== null) {
       const nextTrack = queue.tracks[nextIndex];
       setCurrentTrack(nextTrack);
       setCurrentVerseIndex(nextIndex);
+      persistResume(queue.surah, nextTrack.ayah ?? nextIndex + 1);
       player.load(nextTrack.url);
       // Auto-resume playback for continuous surah playback
       void player.play().catch(() => {
         setError("تعذر متابعة تشغيل السورة تلقائيًا. يرجى الضغط على زر التشغيل.");
       });
     } else {
-      // Final verse ended — surah is complete
+      // Final verse ended — surah genuinely complete: clear saved position
+      clearAudioResume();
+      setResumePosition(null);
       setCurrentTrack(null);
     }
-  }, []);
+  }, [persistResume]);
 
   // --- Core audio hook (HTML5 Audio) ---
   // The onEnded callback handles verse-to-verse sequential playback.
@@ -188,7 +234,11 @@ export function AudioPlayerProvider({
 
       setError(null);
     } catch {
-      setError("تعذر تحميل قائمة القراء. يرجى المحاولة لاحقًا.");
+      setError(
+        isOnline()
+          ? "تعذر تحميل قائمة القراء. يرجى المحاولة لاحقًا."
+          : "يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أعد المحاولة."
+      );
       // Fall back to static surah data so UI still works
       const fallbackSurahs = await audioProvider.getSurahs();
       setSurahs(fallbackSurahs);
@@ -204,20 +254,61 @@ export function AudioPlayerProvider({
     }
   }, [loadReciters]);
 
-  // --- Audio event sync: when currentTrack changes / errors ---
+  // --- Audio event sync: verse failure → retry once, then fail-stop ---
+  // Fail-stop means: NEVER advance to the next verse on error (skipping a
+  // failed verse would silently alter the recitation). Instead the position
+  // is saved for manual resume. The retry budget resets on every new track.
   useEffect(() => {
-    if (player.error) {
+    verseRetryRef.current = { url: "", retried: false };
+  }, [currentTrack?.url]);
+
+  useEffect(() => {
+    if (!player.error || !currentTrack || !currentSurah) return;
+    const reciterId = settings.selectedReciter;
+    if (!reciterId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(player.error);
+      return;
     }
-  }, [player.error]);
+    const trackUrl = currentTrack.url;
+    const ayah = currentTrack.ayah ?? currentVerseIndex + 1;
+    if (verseRetryRef.current.url !== trackUrl) {
+      verseRetryRef.current = { url: trackUrl, retried: false };
+    }
+    if (
+      resolveVerseFailureOutcome(verseRetryRef.current.retried) ===
+      "retry-same"
+    ) {
+      // Single retry of the SAME verse — position is saved first so a
+      // second identical failure still leaves a valid resume point.
+      verseRetryRef.current.retried = true;
+      persistResume(currentSurah.number, ayah);
+      player.load(trackUrl);
+      void player.play().catch(() => {
+        // A play rejection surfaces again via player.error → fail-stop below.
+      });
+      return;
+    }
+    // Fail-stop: save position for manual resume, do not advance.
+    persistResume(currentSurah.number, ayah);
+    setError(isOnline() ? player.error : OFFLINE_VERSE_MSG);
+  }, [
+    player.error,
+    currentTrack,
+    currentSurah,
+    currentVerseIndex,
+    player,
+    settings.selectedReciter,
+    persistResume,
+  ]);
 
   // --- Actions ---
 
   // Internal: load a surah for a specific reciter.
   // Loads the verse-level audio queue for sequential playback.
+  // startAyah (default 1) supports manual resume from a saved position.
   const loadSurahInternal = useCallback(
-    async (surahNum: number, reciterId?: string) => {
+    async (surahNum: number, reciterId?: string, startAyah = 1) => {
       const reciterIdResolved = reciterId ?? settings.selectedReciter;
       if (!reciterIdResolved) {
         setError("اختر قارئًا أولًا.");
@@ -239,9 +330,18 @@ export function AudioPlayerProvider({
       setError(null);
       setCurrentSurah(surahData);
 
+      // Clamp the resume verse into the surah range (default: verse 1)
+      const startAyahSafe =
+        Number.isInteger(startAyah) &&
+        startAyah >= 1 &&
+        startAyah <= surahData.ayahCount
+          ? startAyah
+          : 1;
+      const startIndex = startAyahSafe - 1;
+
       // Clear previous queue
       setVerseQueue(null);
-      setCurrentVerseIndex(0);
+      setCurrentVerseIndex(startIndex);
       setCurrentTrack(null);
 
       try {
@@ -250,20 +350,28 @@ export function AudioPlayerProvider({
           surahNum
         );
         if (!queue || queue.tracks.length === 0) {
-          setError("تعذر العثور على ملف الصوت للسورة.");
+          setError(
+            isOnline()
+              ? "تعذر العثور على ملف الصوت للسورة."
+              : "يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أعد المحاولة."
+          );
           setCurrentTrack(null);
           return;
         }
 
         setVerseQueue(queue);
-        const firstTrack = queue.tracks[0];
+        const firstTrack = queue.tracks[startIndex] ?? queue.tracks[0];
         setCurrentTrack(firstTrack);
-        setCurrentVerseIndex(0);
+        setCurrentVerseIndex(startIndex);
 
         // Load the first verse into the player
         player.load(firstTrack.url);
       } catch {
-        setError("حدث خطأ أثناء تحميل الصوت.");
+        setError(
+          isOnline()
+            ? "حدث خطأ أثناء تحميل الصوت."
+            : "يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أعد المحاولة."
+        );
         setCurrentTrack(null);
       }
     },
@@ -292,7 +400,8 @@ export function AudioPlayerProvider({
   );
 
   const loadSurah = useCallback(
-    (surahNum: number) => loadSurahInternal(surahNum),
+    (surahNum: number, startAyah?: number) =>
+      loadSurahInternal(surahNum, undefined, startAyah),
     [loadSurahInternal]
   );
 
@@ -300,6 +409,18 @@ export function AudioPlayerProvider({
     (reciterId: string) => selectReciter(reciterId),
     [selectReciter]
   );
+
+  // Resume from a saved fail-stop position (manual only — never autoplayed).
+  const resumeCb = useCallback(async () => {
+    const pos = loadAudioResume();
+    if (!pos) return;
+    const reciter = reciters.find((r) => r.id === pos.reciterId);
+    if (reciter) {
+      setCurrentReciter(reciter);
+      setSettings((prev) => ({ ...prev, selectedReciter: pos.reciterId }));
+    }
+    await loadSurahInternal(pos.surah, pos.reciterId, pos.ayah);
+  }, [reciters, loadSurahInternal]);
 
   const playCb = useCallback(() => {
     if (!currentTrack) return;
@@ -385,6 +506,7 @@ export function AudioPlayerProvider({
     currentSurah,
     recitersLoading,
     error,
+    resumePosition,
     currentTrack,
     // Data
     reciters,
@@ -405,6 +527,7 @@ export function AudioPlayerProvider({
       mute: muteCb,
       unmute: unmuteCb,
       reset: resetCb,
+      resume: resumeCb,
     },
   };
 

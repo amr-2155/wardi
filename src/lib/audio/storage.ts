@@ -71,3 +71,66 @@ export function saveAudioSettings(settings: AudioSettings): void {
     // ignore — private mode or quota exceeded
   }
 }
+
+/**
+ * Saved resume position for manual resume after a fail-stop.
+ *
+ * Stored under a SEPARATE key from settings so the settings round-trip
+ * behavior (and its tests) stays untouched. Written when a verse fails
+ * (or is reached during playback); cleared ONLY when a surah genuinely
+ * completes. Never throws.
+ */
+export interface AudioResumePosition {
+  /** Surah number (1–114) */
+  surah: number;
+  /** Verse number within the surah (>= 1) */
+  ayah: number;
+  /** Reciter ID active when the position was saved */
+  reciterId: string;
+}
+
+const RESUME_KEY = "wardi:audio:resume-v1";
+// Longest surah (Al-Baqarah) — upper sanity bound for ayah numbers.
+const MAX_AYAH = 286;
+
+function storageAvailable(): boolean {
+  return typeof localStorage !== "undefined";
+}
+
+export function loadAudioResume(): AudioResumePosition | null {
+  try {
+    if (!storageAvailable()) return null;
+    const raw = localStorage.getItem(RESUME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return null;
+    const surah = Math.floor(Number(parsed.surah));
+    const ayah = Math.floor(Number(parsed.ayah));
+    const reciterId =
+      typeof parsed.reciterId === "string" ? parsed.reciterId : "";
+    if (!Number.isInteger(surah) || surah < 1 || surah > 114) return null;
+    if (!Number.isInteger(ayah) || ayah < 1 || ayah > MAX_AYAH) return null;
+    if (reciterId === "") return null;
+    return { surah, ayah, reciterId };
+  } catch {
+    return null;
+  }
+}
+
+export function saveAudioResume(pos: AudioResumePosition): void {
+  try {
+    if (!storageAvailable()) return;
+    localStorage.setItem(RESUME_KEY, JSON.stringify(pos));
+  } catch {
+    // ignore — private mode or quota exceeded
+  }
+}
+
+export function clearAudioResume(): void {
+  try {
+    if (!storageAvailable()) return;
+    localStorage.removeItem(RESUME_KEY);
+  } catch {
+    // ignore
+  }
+}

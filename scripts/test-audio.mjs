@@ -20,10 +20,19 @@ execFileSync(
   { cwd: ROOT, stdio: "pipe" }
 );
 
+// tsc mirrors inputs relative to their common root: compiling only
+// src/lib/audio/*.ts emits a flat OUT/ layout, while an import reaching
+// outside that folder (e.g. the shared net layer) nests output under
+// OUT/audio/. Resolve both layouts so the harness is robust either way.
+const outFile = (name) => {
+  const nested = join(OUT, "audio", name);
+  return existsSync(nested) ? nested : join(OUT, name);
+};
+
 const {
   isValidSurahNumber,
   normalizeSurahNumber,
-} = await import(pathToFileURL(join(OUT, "types.js")).href);
+} = await import(pathToFileURL(outFile("types.js")).href);
 
 const {
   parseReciters,
@@ -31,7 +40,7 @@ const {
   resolveAudioUrl,
   deriveVersePrefix,
   buildVerseUrl,
-} = await import(pathToFileURL(join(OUT, "quran-com.js")).href);
+} = await import(pathToFileURL(outFile("quran-com.js")).href);
 
 let passed = 0;
 const checks = [];
@@ -238,7 +247,7 @@ check("QuranComProvider implements AudioProviderOps interface", () => {
 
 // ---- I. Storage ----
 const { loadAudioSettings, saveAudioSettings, DEFAULTS } = await import(
-  pathToFileURL(join(OUT, "storage.js")).href
+  pathToFileURL(outFile("storage.js")).href
 );
 
 check("DEFAULTS has correct default values", () => {
