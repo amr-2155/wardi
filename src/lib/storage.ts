@@ -3,10 +3,12 @@ import type {
   DayProgress,
   ManualOverride,
   Reading,
+  TadabburJournalEntry,
   WardAppData,
   WardDay,
   WardSettings,
 } from "./types";
+import type { WardProgress } from "./quran/types";
 
 const V2_SETTINGS = "ward:v2:settings";
 const V2_HISTORY = "ward:v2:history";
@@ -14,6 +16,8 @@ const V2_PROGRESS = "ward:v2:progress";
 const V2_DAILY = "ward:v2:daily";
 const V2_BOOKMARKS = "ward:v2:bookmarks";
 const V2_WARD_DAY = "ward:v2:wardday";
+const V2_JOURNAL = "ward:v2:journal";
+const V2_QURAN_PROGRESS = "ward:v2:quran-progress";
 const LEGACY_SETTINGS = "ward-settings";
 const LEGACY_HISTORY = "ward-history";
 
@@ -51,6 +55,9 @@ export function sanitizeSettings(raw: unknown): WardSettings {
     increaseAmount: Math.max(0, Math.floor(num(r.increaseAmount, d.increaseAmount))),
     increaseEveryDays: Math.max(1, Math.floor(num(r.increaseEveryDays, d.increaseEveryDays))),
     increaseStartDate: isDateKey(r.increaseStartDate) ? r.increaseStartDate : d.increaseStartDate,
+    khatmaIncreaseEnabled:
+      typeof r.khatmaIncreaseEnabled === "boolean" ? r.khatmaIncreaseEnabled : d.khatmaIncreaseEnabled,
+    khatmaIncreaseAmount: Math.max(0, Math.floor(num(r.khatmaIncreaseAmount, d.khatmaIncreaseAmount))),
     khatmaNumber: Math.max(1, Math.floor(num(r.khatmaNumber, d.khatmaNumber))),
     totalPages,
     theme,
@@ -250,4 +257,61 @@ export function loadWardDay(): WardDay | null {
 
 export function saveWardDay(state: WardDay): void {
   localStorage.setItem(V2_WARD_DAY, JSON.stringify(state));
+}
+
+function sanitizeJournalEntry(raw: unknown): TadabburJournalEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.ref !== "string" || !isDateKey(r.date)) return null;
+  return {
+    ref: r.ref,
+    date: r.date,
+    completedAt: typeof r.completedAt === "string" ? r.completedAt : r.date,
+    appliedStep: r.appliedStep === true,
+    personalNote: typeof r.personalNote === "string" ? r.personalNote : "",
+  };
+}
+
+export function loadTadabburJournal(): TadabburJournalEntry[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(V2_JOURNAL) ?? "[]");
+    if (!Array.isArray(raw)) return [];
+    return raw.map(sanitizeJournalEntry).filter((e): e is TadabburJournalEntry => e !== null);
+  } catch {
+    return [];
+  }
+}
+
+export function saveTadabburJournal(entries: TadabburJournalEntry[]): void {
+  try {
+    localStorage.setItem(V2_JOURNAL, JSON.stringify(entries.slice(-100)));
+  } catch {
+    /* storage is best-effort */
+  }
+}
+
+function sanitizeQuranProgress(raw: unknown): WardProgress | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (!isDateKey(r.date) || typeof r.position !== "string" || typeof r.wardStart !== "string") {
+    return null;
+  }
+  // Trust the engine shape; a corrupt entry rebuilds from scratch instead.
+  return r as WardProgress;
+}
+
+export function loadQuranProgress(): WardProgress | null {
+  try {
+    return sanitizeQuranProgress(JSON.parse(localStorage.getItem(V2_QURAN_PROGRESS) ?? "null"));
+  } catch {
+    return null;
+  }
+}
+
+export function saveQuranProgress(state: WardProgress): void {
+  try {
+    localStorage.setItem(V2_QURAN_PROGRESS, JSON.stringify(state));
+  } catch {
+    /* storage is best-effort */
+  }
 }

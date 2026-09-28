@@ -94,6 +94,21 @@ export function SettingsView({ data }: { data: WardData }) {
               </div>
             </div>
           )}
+          <div className="mt-4 animate-fade-up space-y-4 border-t border-line pt-4">
+            <Toggle
+              checked={data.settings.khatmaIncreaseEnabled}
+              onChange={(v) => data.updateSetting("khatmaIncreaseEnabled", v)}
+              label="الزيادة عند إتمام الختمة"
+              description="يزداد وردك بعدد صفحات عند إكمال كل ختمة"
+            />
+            {data.settings.khatmaIncreaseEnabled && (
+              <NumberField
+                label="كم صفحة تزيد عند كل ختمة؟"
+                value={data.settings.khatmaIncreaseAmount}
+                onChange={(v) => data.updateSetting("khatmaIncreaseAmount", v)}
+              />
+            )}
+          </div>
         </Card>
       </div>
 

@@ -42,3 +42,49 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# --- W1 checkpoint hygiene -------------------------------------------------
+# Build / packaging logs
+/apk-build*.log
+/gradle-build*.log
+/dev-qa-server*.log
+/static-qa.log
+
+# QA screenshot artifacts
+/qa-*.png
+
+# Stray OS/tool artifacts
+/nul
+*.hermes-tmp.*
+
+# Large generated binary assets (reproducible via scripts/)
+#   scripts/download-pages.mjs      -> public/quran/pages/*.webp
+#   scripts/build-ayah-meta.mjs     -> public/quran/ayah-meta.json
+#   scripts/generate-icons.ps1      -> app icons
+/public/quran/pages/
+/public/quran/ayah-meta.json
+/public/audio/*.mp3
+/android/app/src/main/res/raw/*.mp3
+/public/wardi-icon-1024.png
+
+# One-off QA / debug scratch scripts (test + build harnesses are tracked)
+/scripts/cdp-*.js
+/scripts/qa-*.js
+/scripts/qa-*.cjs
+/scripts/investigate-*.js
+/scripts/mobile-qa*.js
+/scripts/headless-qa*.js
+/scripts/headless-qa*.mjs
+/scripts/headless-test.js
+/scripts/chrome-debug.js
+/scripts/check-tabs*.js
+/scripts/check-pages.js
+/scripts/verify-api*.js
+/scripts/verify-api*.mjs
+/scripts/verify-pattern*.js
+/scripts/verify-pattern*.mjs
+/scripts/tcp-test.js
+/scripts/parse-pages.js
+/scripts/test-null.js
+/scripts/browser-qa.js
+/scripts/recover-css.mjs

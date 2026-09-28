@@ -1,17 +1,19 @@
 "use client";
 
-import { Minus, Plus, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowLeft, Minus, Plus, X } from "lucide-react";
+import type { CSSProperties, ReactNode } from "react";
 
 export function Card({
   className = "",
   children,
+  style,
 }: {
   className?: string;
   children: ReactNode;
+  style?: CSSProperties;
 }) {
   return (
-    <div className={`rounded-3xl border border-line bg-surface shadow-sm ${className}`}>
+    <div className={`rounded-3xl border border-line bg-surface shadow-sm ${className}`} style={style}>
       {children}
     </div>
   );
@@ -211,7 +213,7 @@ export function ScreenHeader({
         aria-label="رجوع"
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface text-ink shadow-sm transition active:scale-95"
       >
-        <X size={18} className="rotate-180" />
+        <ArrowLeft size={18} className="rtl:rotate-180" />
       </button>
       <div>
         <h2 className="text-xl font-black">{title}</h2>

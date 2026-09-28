@@ -1,4 +1,4 @@
-import type { Chapter, QuranDataset } from "./types";
+import type { AyahMeta, Chapter, QuranDataset } from "./types";
 import { sha256Text } from "./validate";
 import {
   DATASET_SHA256,
@@ -105,6 +105,39 @@ export async function loadHashes(): Promise<string[]> {
     return (await res.json()) as string[];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Printed-mushaf pagination metadata (page/juz/quarter per ayah).
+ * Small file, fetched directly (no IndexedDB cache — cheap to re-fetch).
+ */
+export async function loadAyahMeta(): Promise<AyahMeta | null> {
+  try {
+    const res = await fetch("/quran/ayah-meta.json");
+    if (!res.ok) return null;
+    const raw = (await res.json()) as Partial<AyahMeta> & { totalAyahs?: number };
+    const total = raw.totalAyahs ?? QURAN_TOTAL_AYAHS;
+    if (
+      typeof raw.pages !== "number" ||
+      raw.pages < 1 ||
+      !Array.isArray(raw.pageByAyah) ||
+      !Array.isArray(raw.juzByAyah) ||
+      !Array.isArray(raw.quarterByAyah) ||
+      raw.pageByAyah.length !== total ||
+      raw.juzByAyah.length !== total ||
+      raw.quarterByAyah.length !== total
+    ) {
+      return null;
+    }
+    return {
+      pages: raw.pages,
+      pageByAyah: raw.pageByAyah,
+      juzByAyah: raw.juzByAyah,
+      quarterByAyah: raw.quarterByAyah,
+    };
+  } catch {
+    return null;
   }
 }
 

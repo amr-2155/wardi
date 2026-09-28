@@ -8,12 +8,13 @@ import type { WardData } from "@/hooks/useWardData";
 export function HistoryView({ data }: { data: WardData }) {
   const lastWeek = Array.from({ length: 7 }, (_, i) => {
     const key = addDays(data.today, -(6 - i));
-    const reading = data.history.find((item) => item.completed && item.date === key);
+    const reading = data.history.find((item) => item.date === key);
     return {
       key,
       label: parseKey(key).toLocaleDateString("ar-EG", { weekday: "short" }),
       pages: reading?.pages ?? 0,
-      done: Boolean(reading),
+      done: reading?.completed === true,
+      partial: reading !== undefined && !reading.completed,
     };
   });
 
@@ -36,11 +37,15 @@ export function HistoryView({ data }: { data: WardData }) {
             <span className="text-[10px] font-bold text-muted">{day.label}</span>
             <div
               className={`flex h-8 w-full max-w-7 items-center justify-center rounded-lg text-[10px] font-black ${
-                day.done ? "bg-primary text-white" : "bg-surface-2 text-muted"
+                day.done
+                  ? "bg-primary text-white"
+                  : day.partial
+                    ? "bg-primary/15 text-primary"
+                    : "bg-surface-2 text-muted"
               }`}
               title={`${day.pages} صفحة`}
             >
-              {day.done ? day.pages : "·"}
+              {day.done || day.partial ? day.pages : "·"}
             </div>
             <span className="text-[9px] text-muted">{formatArabicShort(day.key)}</span>
           </div>
@@ -62,7 +67,11 @@ export function HistoryView({ data }: { data: WardData }) {
         <div className="space-y-2">
           {data.history.map((item) => (
             <Card key={item.id} className="flex items-center gap-3 p-3.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                  item.completed ? "bg-primary-soft text-primary" : "bg-surface-2 text-muted"
+                }`}
+              >
                 <CalendarCheck2 size={18} />
               </div>
               <div className="flex-1">
@@ -72,6 +81,7 @@ export function HistoryView({ data }: { data: WardData }) {
                 <p className="mt-0.5 text-[11px] text-muted">
                   {formatArabicShort(item.date)} · الختمة {item.khatma}
                   {item.mode === "manual" && " · تعديل"} · {item.pages} صفحة
+                  {!item.completed && " · جزئي"}
                 </p>
               </div>
               <span className="text-xs font-black text-gold-strong">{item.pages}</span>

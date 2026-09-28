@@ -15,6 +15,8 @@ export type WardSettings = {
   increaseAmount: number;
   increaseEveryDays: number;
   increaseStartDate: string;
+  khatmaIncreaseEnabled: boolean;
+  khatmaIncreaseAmount: number;
   khatmaNumber: number;
   totalPages: number;
   theme: ThemeMode;
@@ -55,8 +57,17 @@ export type WardDay = {
   deferred: boolean;
 };
 
+/** One tadabbur journal entry (per ayah, keeps the latest 100). */
+export type TadabburJournalEntry = {
+  ref: string;
+  date: string;
+  completedAt: string;
+  appliedStep: boolean;
+  personalNote: string;
+};
+
 export type TabId = "home" | "history" | "khatma" | "library" | "settings";
-export type FullViewId = "reading" | "plan" | "stats" | "quran" | "ayah";
+export type FullViewId = "reading" | "plan" | "stats" | "quran" | "ayah" | "mushaf";
 
 export const DEFAULT_SETTINGS: WardSettings = {
   currentPage: 1,
@@ -66,6 +77,8 @@ export const DEFAULT_SETTINGS: WardSettings = {
   increaseAmount: 1,
   increaseEveryDays: 14,
   increaseStartDate: todayKey(),
+  khatmaIncreaseEnabled: false,
+  khatmaIncreaseAmount: 1,
   khatmaNumber: 1,
   totalPages: 604,
   theme: "system",

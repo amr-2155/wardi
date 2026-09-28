@@ -255,6 +255,36 @@ const AR: Record<string, string> = {
   "mushaf.compProject": "المشروع",
   "mushaf.finishWard": "إنهاء الورد",
   "mushaf.readAgain": "قراءة مرة أخرى",
+  "mushaf.autoScroll": "التمرير التلقائي",
+  "mushaf.autoPlay": "تشغيل التمرير التلقائي",
+  "mushaf.autoPause": "إيقاف التمرير مؤقتًا",
+  "mushaf.autoResume": "متابعة",
+  "mushaf.autoScrollSpeed": "سرعة التمرير",
+  "mushaf.flowDown": "نزّل الصفحة للأسفل",
+  "mushaf.flowUp": "ارفع الصفحة للأعلى",
+  "mushaf.flowEnd": "وصلت لنهاية الورد ✓",
+  "mushaf.flowStart": "هذه بداية الورد ✓",
+  "mushaf.fitMode": "مقاس الصفحة في الشاشة",
+  "mushaf.fitModeHint": "«ملء» تعرض صفحة مملوءة بالشاشة وتنزلق بسهمي التنقّل تدريجيًا صفحة وراء صفحة حسب السرعة.",
+  "mushaf.fit_full": "ملء",
+  "mushaf.fit_width": "بالعرض",
+  "mushaf.fit_cozy": "مريح",
+  "mushaf.fit_auto": "تلقائي",
+  "mushaf.appearance": "المظهر",
+  "mushaf.searchTitle": "البحث في السور",
+  "mushaf.listen": "استمع",
+  "mushaf.moreTools": "أدوات أخرى",
+  "mushaf.speedTitle": "سرعة التمرير التلقائي",
+  "mushaf.speedHint": "اختر سرعة أو اسحب الشريط لتعديلها",
+  "mushaf.speedNote": "يتوقف التمرير تلقائيًا عند لمس الصفحة أو التنقل يدويًا، وتكمل من نفس الموضع.",
+  "mushaf.wardSetup": "إعداد الورد",
+  "mushaf.wardSetupTitle": "نطاق الورد",
+  "mushaf.wardSetupHint": "حدد نطاق الصفحات الذي تلتزم به اليوم. التقدم يُحسب من الصفحة الفعلية التي وصلت إليها.",
+  "mushaf.wardFrom": "من صفحة",
+  "mushaf.wardTo": "إلى صفحة",
+  "mushaf.wardStart": "بدء هذا النطاق",
+  "mushaf.wardSetupApplied": "تم ضبط نطاق الورد ✓",
+  "mushaf.wardPages": "({{n}} صفحة)",
   "mushaf.duration": "{{h}} س {{m}} د",
   "mushaf.progressPages": "{{done}} / {{total}} صفحة",
   "mushaf.toolInfo": "معلومات",
@@ -343,6 +373,7 @@ const AR: Record<string, string> = {
   "ui.decrease": "إنقاص",
   "ui.increase": "زيادة",
   "ui.close": "إغلاق",
+  "ui.cancel": "إلغاء",
   "ui.back": "رجوع",
   "ui.progress": "التقدم {{percent}}%",
 
@@ -635,6 +666,36 @@ const EN: Record<string, string> = {
   "mushaf.compProject": "Project",
   "mushaf.finishWard": "Finish ward",
   "mushaf.readAgain": "Read again",
+  "mushaf.autoScroll": "Auto scroll",
+  "mushaf.autoPlay": "Start auto scroll",
+  "mushaf.autoPause": "Pause auto scroll",
+  "mushaf.autoResume": "Resume",
+  "mushaf.autoScrollSpeed": "Scroll speed",
+  "mushaf.flowDown": "Scroll the page down",
+  "mushaf.flowUp": "Scroll the page up",
+  "mushaf.flowStart": "This is the start of the ward ✓",
+  "mushaf.fitMode": "Page fit",
+  "mushaf.fitModeHint": "“Fill” shows a page that fills the whole screen and rolls gradually page-by-page with the arrows at your speed.",
+  "mushaf.fit_full": "Fill",
+  "mushaf.fit_width": "Width",
+  "mushaf.fit_cozy": "Cozy",
+  "mushaf.fit_auto": "Auto",
+  "mushaf.appearance": "Appearance",
+  "mushaf.searchTitle": "Search surahs",
+  "mushaf.listen": "Listen",
+  "mushaf.moreTools": "More tools",
+  "mushaf.flowEnd": "You reached the end of the ward ✓",
+  "mushaf.speedTitle": "Auto scroll speed",
+  "mushaf.speedHint": "Pick a speed or drag the slider",
+  "mushaf.speedNote": "Scrolling pauses whenever you touch the page or navigate manually. Resume from the same spot.",
+  "mushaf.wardSetup": "Ward setup",
+  "mushaf.wardSetupTitle": "Ward range",
+  "mushaf.wardSetupHint": "Choose the page range you commit to today. Progress comes from the actual page reached.",
+  "mushaf.wardFrom": "From page",
+  "mushaf.wardTo": "To page",
+  "mushaf.wardStart": "Start this range",
+  "mushaf.wardSetupApplied": "Ward range set ✓",
+  "mushaf.wardPages": "({{n}} pages)",
   "mushaf.duration": "{{h}}h {{m}}m",
   "mushaf.progressPages": "{{done}} / {{total}} pages",
   "mushaf.toolInfo": "Info",
@@ -723,6 +784,7 @@ const EN: Record<string, string> = {
   "ui.decrease": "Decrease",
   "ui.increase": "Increase",
   "ui.close": "Close",
+  "ui.cancel": "Cancel",
   "ui.back": "Back",
   "ui.progress": "Progress {{percent}}%",
 
@@ -764,7 +826,7 @@ const EN: Record<string, string> = {
   "library.audioDesc": "Listen to Quran recitation",
 };
 
-const LOCALES: Record<Locale, Record<string, string>> = { ar: AR, en: EN };
+export const LOCALES: Record<Locale, Record<string, string>> = { ar: AR, en: EN };
 
 const STORAGE_KEY = "ward:v2:locale";
 
@@ -864,17 +926,19 @@ export function useLocaleState(): LocaleContextValue {
   const [locale, setLocaleRaw] = useState<Locale>("ar");
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    setLocale(getLocaleFromStorage());
-    setLoaded(true);
-  }, []);
-
   const setLocale = useCallback((l: Locale) => {
     setLocaleRaw(l);
     saveLocaleToStorage(l);
     document.documentElement.lang = l;
     document.documentElement.dir = l === "ar" ? "rtl" : "ltr";
   }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- hydration-safe load */
+  useEffect(() => {
+    setLocale(getLocaleFromStorage());
+    setLoaded(true);
+  }, [setLocale]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (loaded) {

@@ -16,6 +16,7 @@ import {
   type DayProgress,
   type ManualOverride,
   type Reading,
+  type ReadingMode,
   type ThemeMode,
   type WardSettings,
 } from "@/lib/types";
@@ -28,12 +29,30 @@ import {
   pageRange,
   type IncreaseInfo,
 } from "@/lib/ward";
+import {
+  compensationPlan,
+  wardRollover,
+  type CompensationPlan,
+  type WardRolloverInfo,
+} from "@/lib/quran/progress";
 
 function applyThemeClass(theme: ThemeMode): void {
   const dark =
     theme === "dark" ||
     (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
+}
+
+/**
+ * History is the single record of what was read on a day: there is at most one
+ * entry per date, so a partial day is upgraded in place instead of duplicated.
+ */
+function upsertReading(prev: Reading[], reading: Reading): Reading[] {
+  const idx = prev.findIndex((item) => item.date === reading.date);
+  if (idx < 0) return [reading, ...prev];
+  const next = [...prev];
+  next[idx] = reading;
+  return next;
 }
 
 export type WardData = {
@@ -59,10 +78,15 @@ export type WardData = {
   totalDays: number;
   weekRead: number;
   increaseInfo: IncreaseInfo | null;
+  /** Pages owed from previous unsettled days (null when nothing is owed). */
+  backlog: WardRolloverInfo | null;
+  /** Suggested catch-up pace derived from the backlog. */
+  catchUp: CompensationPlan | null;
   updateSetting: <K extends keyof WardSettings>(key: K, value: WardSettings[K]) => void;
   toggleAutoIncrease: () => void;
   setManualOverride: (pages: number) => void;
   clearManualOverride: () => void;
+  setTodayWard: (from: number, pages: number) => void;
   changeProgress: (delta: number) => void;
   setProgressValue: (value: number) => void;
   completeToday: () => void;
@@ -149,6 +173,33 @@ export function useWardData(): WardData {
 
   const increaseInfo = useMemo(() => nextIncreaseInfo(settings, today), [settings, today]);
 
+  /* Backlog: days scheduled before today that were never completed. Scanning
+     stops at the oldest recorded day (or the plan start on a fresh install) so
+     a new user is never charged a year of debt. Partial pages already read on
+     those days are credited back through readFor(). */
+  const backlog = useMemo(() => {
+    const firstRecorded = history.reduce<string | null>(
+      (min, item) => (min === null || item.date < min ? item.date : min),
+      null
+    );
+    const floor = firstRecorded ?? settings.increaseStartDate;
+    if (floor > today) return null;
+    const info = wardRollover({
+      completedDates: [...completedDates],
+      skippedDates: [],
+      today,
+      pagesFor: (day) => effectiveDailyPages(settings, day),
+      readFor: (day) => history.find((item) => item.date === day)?.pages ?? 0,
+      minDate: floor,
+    });
+    return info.remainingPages > 0 ? info : null;
+  }, [completedDates, history, settings, today]);
+
+  const catchUp = useMemo(
+    () => (backlog ? compensationPlan(backlog.remainingPages, dailyPages) : null),
+    [backlog, dailyPages]
+  );
+
   const updateSetting = useCallback(
     <K extends keyof WardSettings>(key: K, value: WardSettings[K]) => {
       setSettings((prev) => {
@@ -183,21 +234,95 @@ export function useWardData(): WardData {
     setSettings((prev) => ({ ...prev, manualOverride: null }));
   }, []);
 
+  const setTodayWard = useCallback(
+    (from: number, pages: number) => {
+      const to = Math.min(settings.totalPages, from + pages - 1);
+      const count = Math.max(1, to - from + 1);
+      setHistory((prev) => {
+        const entry: Reading = {
+          id: today,
+          date: today,
+          khatma: settings.khatmaNumber,
+          startPage: from,
+          endPage: to,
+          // 0 pages: this reserves the day's ward, it does not record reading.
+          // backlog's readFor() reads this field, so a planned-but-unread day
+          // must not cancel the debt it owes. recordToday fills it in.
+          pages: 0,
+          completed: false,
+          mode: "manual",
+        };
+        const idx = prev.findIndex((e) => e.date === today);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = entry;
+          return next;
+        }
+        return [entry, ...prev];
+      });
+      setProgress({ date: today, pages: 0 });
+      setSettings((prev) => ({
+        ...prev,
+        currentPage: from,
+        dailyPages: count,
+        autoIncrease: false,
+        manualOverride: null,
+      }));
+    },
+    [today, settings],
+  );
+
+  /* The one write path for "pages read today". It keeps the progress ring and
+     the history entry in lockstep, so partial reading is persisted instead of
+     living only in the ring and vanishing when the day is left unfinished. */
+  const recordToday = useCallback(
+    (pages: number) => {
+      // Guarded here so EVERY entry point (delta and absolute) shares it: a
+      // settled day is never silently downgraded back to a partial entry.
+      if (todayReading?.completed) return;
+      if (!Number.isFinite(pages)) return;
+      const next = Math.max(0, Math.min(Math.floor(pages), dailyPages));
+      setProgress({ date: today, pages: next });
+      const mode: ReadingMode =
+        settings.manualOverride && settings.manualOverride.date === today ? "manual" : "auto";
+      setHistory((prev) => {
+        if (next === 0) return prev.filter((item) => item.date !== today);
+        return upsertReading(prev, {
+          id: prev.find((item) => item.date === today)?.id ?? today,
+          date: today,
+          khatma: settings.khatmaNumber,
+          startPage,
+          endPage: Math.min(settings.totalPages, startPage + next - 1),
+          pages: next,
+          completed: false,
+          mode,
+        });
+      });
+    },
+    [today, todayReading, dailyPages, startPage, settings]
+  );
+
   const setTodayProgress = useCallback(
     (value: number) => {
-      setProgress({ date: today, pages: Math.max(0, Math.min(value, dailyPages)) });
+      recordToday(value);
     },
-    [today, dailyPages]
+    [recordToday]
   );
 
   const changeProgress = useCallback(
     (delta: number) => {
-      setProgress((prev) => {
-        const base = prev && prev.date === today ? prev.pages : 0;
-        return { date: today, pages: Math.max(0, Math.min(base + delta, dailyPages)) };
-      });
+      if (!Number.isFinite(delta) || delta === 0) return;
+      // History is the source of truth once today's entry exists; the progress
+      // ring is only a fallback. Deriving from the ring alone would clobber
+      // already-recorded partial pages if the two keys ever diverge.
+      const base = todayReading
+        ? todayReading.pages
+        : progress && progress.date === today
+          ? progress.pages
+          : 0;
+      recordToday(base + delta);
     },
-    [today, dailyPages]
+    [progress, todayReading, today, recordToday]
   );
 
   const setProgressValue = useCallback(
@@ -208,9 +333,12 @@ export function useWardData(): WardData {
   );
 
   const completeToday = useCallback(() => {
-    if (todayReading) return;
+    // Only a day that is ALREADY completed blocks re-completion. An existing
+    // incomplete entry (from partial reading or setTodayWard) is upgraded here
+    // rather than silently short-circuiting the completion.
+    if (todayReading?.completed) return;
     const reading: Reading = {
-      id: crypto.randomUUID(),
+      id: todayReading?.id ?? today,
       date: today,
       khatma: settings.khatmaNumber,
       startPage,
@@ -219,13 +347,18 @@ export function useWardData(): WardData {
       completed: true,
       mode: settings.manualOverride && settings.manualOverride.date === today ? "manual" : "auto",
     };
-    setHistory((prev) => [reading, ...prev]);
+    setHistory((prev) => upsertReading(prev, reading));
     setSettings((prev) => {
       const finished = endPage >= prev.totalPages;
+      const bump = finished && prev.khatmaIncreaseEnabled && prev.khatmaIncreaseAmount > 0
+        ? prev.khatmaIncreaseAmount
+        : 0;
       return {
         ...prev,
         currentPage: finished ? 1 : endPage + 1,
         khatmaNumber: finished ? prev.khatmaNumber + 1 : prev.khatmaNumber,
+        baseDailyPages: finished && prev.autoIncrease ? prev.baseDailyPages + bump : prev.baseDailyPages,
+        dailyPages: finished && !prev.autoIncrease ? prev.dailyPages + bump : prev.dailyPages,
       };
     });
     setProgress({ date: today, pages: dailyPages });
@@ -312,10 +445,13 @@ export function useWardData(): WardData {
     totalDays,
     weekRead,
     increaseInfo,
+    backlog,
+    catchUp,
     updateSetting,
     toggleAutoIncrease,
     setManualOverride,
     clearManualOverride,
+    setTodayWard,
     changeProgress,
     setProgressValue,
     completeToday,

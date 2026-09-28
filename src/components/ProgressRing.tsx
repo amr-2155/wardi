@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export function ProgressRing({
   percent,
@@ -10,6 +10,7 @@ export function ProgressRing({
   bar,
   className = "",
   label,
+  animated = false,
 }: {
   percent: number;
   size?: number;
@@ -17,7 +18,10 @@ export function ProgressRing({
   track?: string;
   bar?: string;
   className?: string;
-  label?: ReactNode;
+  /** Static node or a render-prop receiving the clamped percent. */
+  label?: ReactNode | ((percent: number) => ReactNode);
+  /** Animate the arc from empty on mount (completion celebrations). */
+  animated?: boolean;
 }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -51,11 +55,18 @@ export function ProgressRing({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          className="transition-all duration-500 ease-out"
+          style={
+            animated
+              ? ({ "--ring-from": circumference, "--ring-to": offset } as CSSProperties)
+              : undefined
+          }
+          className={`transition-all duration-500 ease-out${animated ? " animate-ring-fill" : ""}`}
         />
       </svg>
       {label !== undefined && (
-        <div className="absolute inset-0 flex items-center justify-center">{label}</div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          {typeof label === "function" ? label(clamped) : label}
+        </div>
       )}
     </div>
   );

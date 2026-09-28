@@ -70,6 +70,8 @@ export interface AudioPlayerActions {
   unmute: () => void;
   /** Clear everything and stop playback. */
   reset: () => void;
+  /** Stop playback and clear the queue/track (keeps reciter + surah). */
+  stop: () => void;
   /** Resume from the saved fail-stop position (if any). */
   resume: () => void;
 }
@@ -476,6 +478,14 @@ export function AudioPlayerProvider({
     setError(null);
   }, [player]);
 
+  const stopCb = useCallback(() => {
+    player.stop();
+    setCurrentTrack(null);
+    setVerseQueue(null);
+    setCurrentVerseIndex(0);
+    setError(null);
+  }, [player]);
+
   // Restore playback position when a surah is reloaded
   useEffect(() => {
     if (currentTrack && currentSurah && settings.lastPlayedSurah === currentSurah.number) {
@@ -527,6 +537,7 @@ export function AudioPlayerProvider({
       mute: muteCb,
       unmute: unmuteCb,
       reset: resetCb,
+      stop: stopCb,
       resume: resumeCb,
     },
   };

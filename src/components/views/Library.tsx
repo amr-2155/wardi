@@ -1,7 +1,7 @@
 "use client";
 
 import { Bookmark, BookOpen, Clock3, Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Card, SegmentControl } from "@/components/ui";
 import { VerseText } from "@/components/quran";
 import { TOPICS } from "@/data/quran";
@@ -29,7 +29,11 @@ export function LibraryView({
   const [section, setSection] = useState<"search" | "bookmarks">("search");
   const [subSection, setSubSection] = useState<"verses" | "audio">("verses");
 
-  const results = useMemo(() => quran.search(query, 40), [quran, query]);
+  /* The input stays controlled by `query` so typing is always immediate, while
+     the (heavier) result list renders from a deferred value. Keeps the field
+     responsive while a query is still settling. */
+  const deferredQuery = useDeferredValue(query);
+  const results = useMemo(() => quran.search(deferredQuery, 40), [quran, deferredQuery]);
 
   const topicVerses = useMemo(() => {
     const topic = selectedTopic ? topics.find((tp) => tp.name === selectedTopic) : null;
@@ -39,8 +43,8 @@ export function LibraryView({
   const dailyAyah = quran.getAyah(quran.daily?.ref ?? "");
   const dailyVisible = quran.dailyReady && dailyAyah;
 
-  const showResults = query.trim().length > 0 || (selectedTopic && topicVerses.length > 0);
-  const listRefs = query.trim().length > 0 ? results.map((r) => r.ref) : topicVerses;
+  const showResults = deferredQuery.trim().length > 0 || (selectedTopic && topicVerses.length > 0);
+  const listRefs = deferredQuery.trim().length > 0 ? results.map((r) => r.ref) : topicVerses;
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-5 pb-32 animate-fade-slide-up">
@@ -152,11 +156,11 @@ export function LibraryView({
 
             {/* RESULTS */}
             <div className="mt-5 flex flex-col gap-2.5">
-              {query.trim().length > 0 && (
+              {deferredQuery.trim().length > 0 && (
                 <p className="text-[11px] text-muted">
                   {results.length > 0
-                    ? `${results.length} ${t("library.resultsFor")} «${query}»`
-                    : `${t("library.noResults")} «${query}»`}
+                    ? `${results.length} ${t("library.resultsFor")} «${deferredQuery}»`
+                    : `${t("library.noResults")} «${deferredQuery}»`}
                 </p>
               )}
               {selectedTopic && !showResults && <TopicEmpty t={t} />}

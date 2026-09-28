@@ -87,4 +87,36 @@ export type TafsirEntry = {
   reflection: string;
   tafsirSource: string;
   reviewStatus: "reviewed";
+  /** Practical application step (absent in older dataset snapshots). */
+  practicalStep?: string;
+};
+
+/**
+ * Printed-mushaf pagination metadata (604-page Madani mushaf).
+ * Arrays are indexed by 0-based global ayah id (globalId - 1).
+ */
+export type AyahMeta = {
+  pages: number;
+  pageByAyah: number[];
+  juzByAyah: number[];
+  quarterByAyah: number[];
+};
+
+/** Tadabbur candidate ranking used by the ward engine. */
+export type CandidatePriority = "in-ward" | "next";
+
+/** Persisted per-day ward progress (ayah-granular Quran reading state). */
+export type WardProgress = {
+  date: string;
+  position: AyahRef;
+  wardStart: AyahRef;
+  wardEnd: AyahRef;
+  quotaPages: number;
+  quotaAyahs: number;
+  totalPages: number;
+  ayahsPerPage: number;
+  tadabburAyah: AyahRef | null;
+  candidatePriority: CandidatePriority;
+  tadabburHistory: AyahRef[];
+  done: boolean;
 };

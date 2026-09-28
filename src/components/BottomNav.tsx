@@ -34,14 +34,14 @@ export function BottomNav({
             >
               <span
                 className={`flex h-8 w-14 items-center justify-center rounded-full transition ${
-                  isActive ? "bg-primary-soft text-primary" : "text-muted"
+                  isActive ? "bg-primary-soft text-primary-ink" : "text-muted"
                 }`}
               >
                 <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
               </span>
               <span
                 className={`text-[10px] font-bold ${
-                  isActive ? "text-primary" : "text-muted"
+                  isActive ? "text-primary-ink" : "text-muted"
                 }`}
               >
                 {item.label}

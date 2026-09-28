@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RELATIONS, TOPICS, TAFSIR } from "@/data/quran";
-import type { QuranDataset, QuranSearchResult, TafsirEntry } from "@/lib/quran/types";
+import type { AyahMeta, QuranDataset, QuranSearchResult, TafsirEntry, WardProgress } from "@/lib/quran/types";
 import { getRelatedAyahs } from "@/lib/quran/relations";
 import { getTafsir, tadabburPool } from "@/lib/quran/tafsir";
 import { getDailyAyah, dateKeyOf } from "@/lib/quran/daily";
-import { searchQuran, getVerseTopics } from "@/lib/quran/search";
-import { loadDataset, loadHashes, type DatasetStatus } from "@/lib/quran/store";
+import { searchWithIndex, buildSearchIndex, getVerseTopics } from "@/lib/quran/search";
+import { loadAyahMeta, loadDataset, loadHashes, type DatasetStatus } from "@/lib/quran/store";
+import {
+  advancePages,
+  ayahQuotaForPages,
+  buildWardProgress,
+  finishWard,
+} from "@/lib/quran/progress";
 import { resolveAyah } from "@/lib/quran/validate";
 import {
   loadDaily,
@@ -16,14 +22,22 @@ import {
   saveBookmarks,
   loadWardDay,
   saveWardDay,
+  loadQuranProgress,
+  saveQuranProgress,
   type DailyState,
 } from "@/lib/storage";
 import type { WardDay } from "@/lib/types";
+import type { SearchIndex } from "@/lib/quran/search";
+
+/** Stable empty index so `search` keeps a constant identity before the dataset loads. */
+const EMPTY_INDEX: SearchIndex[] = [];
 
 export type QuranData = {
   loaded: boolean;
   status: DatasetStatus;
   dataset: QuranDataset | null;
+  /** Printed-mushaf pagination (null until ayah-meta.json loads). */
+  meta: AyahMeta | null;
   hashes: string[];
   daily: DailyState | null;
   dailyReady: boolean;
@@ -39,10 +53,18 @@ export type QuranData = {
   markAyahRead: () => void;
   completeTadabbur: () => void;
   deferTadabbur: () => void;
+  /** Advance the Quran-side ward progress by N printed pages. */
+  markPageRead: (countPages: number) => void;
+  /** Mark the whole Quran-side ward read (advances to the next ward). */
+  completeWard: () => void;
 };
 
-export function useQuran(): QuranData {
+export function useQuran(args?: { dailyPages?: number; totalPages?: number }): QuranData {
+  const dailyPages = Math.max(1, Math.floor(args?.dailyPages ?? 25));
+  const totalPages = Math.max(1, Math.floor(args?.totalPages ?? 604));
   const [dataset, setDataset] = useState<QuranDataset | null>(null);
+  const [meta, setMeta] = useState<AyahMeta | null>(null);
+  const [progress, setProgress] = useState<WardProgress | null>(null);
   const [status, setStatus] = useState<DatasetStatus>("error");
   const [hashes, setHashes] = useState<string[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
@@ -60,6 +82,9 @@ export function useQuran(): QuranData {
     });
     loadHashes().then((h) => {
       if (!cancelled) setHashes(h);
+    });
+    loadAyahMeta().then((m) => {
+      if (!cancelled) setMeta(m);
     });
     setBookmarks(loadBookmarks());
     setDaily(loadDaily());
@@ -106,6 +131,26 @@ export function useQuran(): QuranData {
   }, [loaded, dataset, daily, wardDay]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* Quran-side ward progress (ayah-granular mirror used by the mushaf reader).
+     Built once the dataset is ready, rolled over daily by the engine. */
+  /* eslint-disable react-hooks/set-state-in-effect -- build persisted progress once dataset ready */
+  useEffect(() => {
+    if (!loaded || !dataset) return;
+    const today = dateKeyOf(new Date());
+    const pool = tadabburPool(TAFSIR, dataset);
+    const next = buildWardProgress({
+      prev: progress ?? loadQuranProgress(),
+      date: today,
+      dailyPages,
+      totalPages,
+      dataset,
+      pool,
+    });
+    setProgress((cur) => (cur === next ? cur : next));
+    saveQuranProgress(next);
+  }, [loaded, dataset, dailyPages, totalPages, progress]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const getAyah = useCallback(
     (ayahId: string) => (dataset ? resolveAyah(ayahId, dataset) : null),
     [dataset]
@@ -120,9 +165,16 @@ export function useQuran(): QuranData {
 
   const getTafsirRef = useCallback((ayahId: string) => getTafsir(ayahId, TAFSIR), []);
 
-  const search = useCallback(
-    (query: string, limit?: number) => (dataset ? searchQuran(query, dataset, TOPICS, limit) : []),
+  /* Pre-normalize the dataset once. `dataset` is stable state (set on load),
+     so this runs exactly once per dataset instead of per keystroke. */
+  const searchIndex = useMemo(
+    () => (dataset ? buildSearchIndex(dataset, TOPICS) : EMPTY_INDEX),
     [dataset]
+  );
+
+  const search = useCallback(
+    (query: string, limit?: number) => searchWithIndex(searchIndex, query, limit),
+    [searchIndex]
   );
 
   const isBookmarked = useCallback((ayahId: string) => bookmarks.includes(ayahId), [bookmarks]);
@@ -165,6 +217,35 @@ export function useQuran(): QuranData {
     });
   }, []);
 
+  const markPageRead = useCallback(
+    (countPages: number) => {
+      if (!dataset) return;
+      const pool = tadabburPool(TAFSIR, dataset);
+      setProgress((prev) => {
+        if (!prev) return prev;
+        const next = advancePages({
+          state: prev,
+          countAyahs: ayahQuotaForPages(dataset, countPages, totalPages),
+          dataset,
+          pool,
+        });
+        saveQuranProgress(next);
+        return next;
+      });
+    },
+    [dataset, totalPages]
+  );
+
+  const completeWard = useCallback(() => {
+    if (!dataset) return;
+    setProgress((prev) => {
+      if (!prev) return prev;
+      const next = finishWard({ state: prev, dataset });
+      saveQuranProgress(next);
+      return next;
+    });
+  }, [dataset]);
+
   const dailyReady = Boolean(dataset && daily && daily.date === dateKeyOf(new Date()));
 
   return useMemo(
@@ -172,6 +253,7 @@ export function useQuran(): QuranData {
       loaded,
       status,
       dataset,
+      meta,
       hashes,
       daily,
       dailyReady,
@@ -187,11 +269,14 @@ export function useQuran(): QuranData {
       markAyahRead,
       completeTadabbur,
       deferTadabbur,
+      markPageRead,
+      completeWard,
     }),
     [
       loaded,
       status,
       dataset,
+      meta,
       hashes,
       daily,
       dailyReady,
@@ -207,6 +292,8 @@ export function useQuran(): QuranData {
       markAyahRead,
       completeTadabbur,
       deferTadabbur,
+      markPageRead,
+      completeWard,
     ]
   );
 }
