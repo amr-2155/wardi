@@ -188,7 +188,15 @@ function startStaticServer(rootDir) {
       resolve({
         server,
         url: `http://127.0.0.1:${port}/`,
-        close: () => new Promise((r) => server.close(() => r())),
+        close: () =>
+          new Promise((r) => {
+            /* Chrome keeps keep-alive sockets open; without dropping them,
+               server.close() never calls back and the harness hangs after the
+               report has already been written. */
+            server.closeAllConnections?.();
+            server.close(() => r());
+            setTimeout(r, 2000).unref();
+          }),
       });
     });
   });
@@ -764,6 +772,12 @@ async function main() {
     phase = "check5-language";
     await clickNav(cdp, 4); // settings
     await sleep(900);
+    /* Normalise the starting language first. The app follows
+       navigator.language, so a fresh profile on an English host boots in
+       English; without this reset the "switch to English" assertion is
+       vacuous and fails on textChanged. */
+    const resetAr = await clickByText(cdp, ["العربية"]);
+    await sleep(1200);
     const before = await snapshot(cdp);
     const toEn = await clickByText(cdp, ["English"]);
     await sleep(1200);
@@ -775,6 +789,8 @@ async function main() {
     await sleep(1200);
     const ar = await snapshot(cdp);
     const enOk =
+      before.dir === "rtl" &&
+      before.lang === "ar" &&
       toEn.startsWith("CLICKED") &&
       en.dir === "ltr" &&
       en.lang === "en" &&
@@ -785,7 +801,7 @@ async function main() {
       5,
       "English flips dir=ltr and changes text; Arabic restores RTL",
       enOk && arOk,
-      `before dir=${before.dir}/lang=${before.lang} nav=[${before.navLabels.join("|")}] -> ` +
+      `reset-to-ar=${resetAr}; before dir=${before.dir}/lang=${before.lang} nav=[${before.navLabels.join("|")}] -> ` +
         `after-en dir=${en.dir}/lang=${en.lang} nav=[${en.navLabels.join("|")}] (click=${toEn}) -> ` +
         `after-ar dir=${ar.dir}/lang=${ar.lang} (click=${toAr}); textChanged=${en.text !== before.text}`,
     );
@@ -980,9 +996,19 @@ async function main() {
     log(`  screenshots (${screenshots.length}):`);
     for (const s of screenshots) log(`    ${s}`);
     log("==================================================================");
-    process.exitCode = failed.length ? 1 : 0;
+    const exitCode = failed.length ? 1 : 0;
+    process.exitCode = exitCode;
+    /* If any handle (a Chrome pipe, a keep-alive socket) refuses to close,
+       force the exit after the synchronous report/log writes above. */
+    setTimeout(() => process.exit(exitCode), 100).unref();
   }
 }
+
+/* Hard ceiling so a stuck CDP call cannot hang a release job forever. */
+setTimeout(() => {
+  log("FATAL: harness exceeded the 10-minute safety limit");
+  process.exit(2);
+}, 10 * 60 * 1000).unref();
 
 main().catch((err) => {
   log(`FATAL: ${err.stack || err.message}`);
