@@ -32,6 +32,23 @@ export function pageRange(start: number, pages: number, totalPages: number): Pag
   return { start: from, end, next };
 }
 
+/**
+ * Pages that genuinely exist in today's ward.
+ *
+ * The scheduled ward can run past the end of the mushaf on the final khatma
+ * day. Recording or measuring against the scheduled number inflated
+ * totalRead/averages and left the final day permanently uncompletable. Returns
+ * the size of the real range pageRange clamped to the mushaf.
+ */
+export function wardPagesAvailable(
+  startPage: number,
+  scheduledPages: number,
+  totalPages: number
+): number {
+  const { start, end } = pageRange(startPage, scheduledPages, totalPages);
+  return Math.max(1, end - start + 1);
+}
+
 export type IncreaseInfo = {
   date: string;
   daysLeft: number;
@@ -101,6 +118,42 @@ export function computeStreak(dates: Set<string>, today: string): number {
     return count;
   }
   return 0;
+}
+
+/**
+ * Streak freeze: banked shields auto-bridge missed days while walking the
+ * current streak back. Returns the adjusted streak plus exactly which gap
+ * dates were consumed, so the caller can persist them. Pure — no storage.
+ * `banked` shields beyond the gap are untouched; an empty bank behaves
+ * exactly like `computeStreak`.
+ */
+export function planFreezeUse(
+  dates: Set<string>,
+  today: string,
+  banked: number
+): { streak: number; useDates: string[] } {
+  const useDates: string[] = [];
+  let left = Math.max(0, Math.floor(banked));
+  const has = (k: string) => dates.has(k) || useDates.includes(k);
+  // Mirror computeStreak: an untouched today still counts if yesterday held.
+  const cursor = has(today) ? today : addDays(today, -1);
+  if (!has(cursor)) return { streak: 0, useDates };
+  let streak = 0;
+  for (let back = 0; back < 3660; back += 1) {
+    const key = addDays(cursor, -back);
+    if (dates.has(key)) {
+      streak += 1;
+      continue;
+    }
+    if (left > 0) {
+      left -= 1;
+      useDates.push(key);
+      streak += 1;
+      continue;
+    }
+    break;
+  }
+  return { streak, useDates };
 }
 
 export function computeBestStreak(dates: Set<string>): number {

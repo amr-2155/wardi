@@ -40,13 +40,17 @@ export function TadabburSection({
   candidateResolved,
   wardDay,
   quran,
+  showHeader = true,
 }: {
   candidate: string;
   candidateResolved: { chapter: { name: string; verses: { number: number; text: string }[] }; verse: { number: number; text: string } } | null;
   wardDay: WardDay | null;
   quran: QuranData;
+  /** The sheet supplies its own title, so it hides the card heading. */
+  showHeader?: boolean;
 }) {
   const { t } = useLocale();
+  const { completeTadabbur } = quran;
   const [expanded, setExpanded] = useState(false);
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
   const [timerActive, setTimerActive] = useState(false);
@@ -96,8 +100,10 @@ export function TadabburSection({
 
   const expandAll = useCallback(() => {
     setExpanded(true);
-    setOpenSections(new Set(["tafsir", "simple", "live", "reflect"]));
-  }, []);
+    setOpenSections(
+      new Set(tafsir ? ["tafsir", "simple", "live", "reflect"] : [])
+    );
+  }, [tafsir]);
 
   const startTimer = useCallback(() => {
     setTimerSeconds(60);
@@ -119,7 +125,12 @@ export function TadabburSection({
     const next = [...journal.filter((e) => e.ref !== candidate), entry].slice(-100);
     setJournal(next);
     saveTadabburJournal(next);
-  }, [candidate, personalNote, journal]);
+    /* Applying the step IS the end of the reflection, so this is the one
+       action that has to advance Quran-side progress too. The minimal
+       TadabburSheet used to own this call; keeping it here means the journal
+       write and the progress update can never drift apart. */
+    completeTadabbur();
+  }, [candidate, personalNote, journal, completeTadabbur]);
 
   const saveNote = useCallback(() => {
     const entry: TadabburJournalEntry = {
@@ -133,14 +144,23 @@ export function TadabburSection({
     setJournal(next);
     saveTadabburJournal(next);
     setNoteOpen(false);
-  }, [candidate, personalNote, stepDone, journal]);
+    /* With no curated entry there is no separate "apply the step" button, so
+       writing the note is the action that finishes the reflection. Without this
+       the reflection could be written but never counted in the day. */
+    if (!tafsir) completeTadabbur();
+  }, [candidate, personalNote, stepDone, journal, tafsir, completeTadabbur]);
 
   const hadPreviousJournal = useMemo(
     () => journal.some((e) => e.ref === candidate),
     [journal, candidate]
   );
 
-  if (!candidateResolved || !tafsir) return null;
+  /* Only the four accordion sections and the practical step come from the
+     curated tafsir. The verse, the timer, the personal note, the journal and
+     the completion all work without it — and only 24 ayahs have an entry, so
+     gating the whole card on tafsir left this feature unreachable for 99.6% of
+     the Quran. Render what is available and say plainly what is missing. */
+  if (!candidateResolved) return null;
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -151,10 +171,12 @@ export function TadabburSection({
   return (
     <section className="animate-fade-slide-up animate-delay-1 mt-4">
       <div className="mb-2 px-1">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-muted">
-          <Sparkles size={12} className="text-gold-strong" />
-          {t("tadabbur.title")}
-        </div>
+        {showHeader && (
+          <div className="flex items-center gap-1.5 text-xs font-bold text-muted">
+            <Sparkles size={12} className="text-gold-strong" />
+            {t("tadabbur.title")}
+          </div>
+        )}
         <p className="mt-0.5 text-xs text-muted">{t("tadabbur.subtitle")}</p>
       </div>
 
@@ -207,8 +229,11 @@ export function TadabburSection({
         {/* EXPANDED CONTENT */}
         {expanded && (
           <div className="animate-fade-up border-t border-line">
-            {/* ACCORDION SECTIONS */}
-            {SECTION_DEFS.map((section) => {
+            {/* ACCORDION SECTIONS — all four are derived from the curated
+                tafsir entry, so with none they are omitted rather than shown
+                empty. */}
+            {tafsir &&
+              SECTION_DEFS.map((section) => {
               const isOpen = openSections.has(section.key);
               const Icon = section.icon;
               return (
@@ -237,7 +262,7 @@ export function TadabburSection({
                   )}
                 </div>
               );
-            })}
+              })}
 
             {/* TIMER */}
             <div className="border-b border-line px-5 py-4">
@@ -277,36 +302,50 @@ export function TadabburSection({
               )}
             </div>
 
-            {/* PRACTICAL STEP */}
-            <div className="border-b border-line px-5 py-4">
-              <div className="flex items-center gap-2">
-                <Sprout size={14} className="text-success" />
-                <span className="text-xs font-black text-success">{t("tadabbur.stepTitle")}</span>
+            {/* PRACTICAL STEP — needs the curated entry. Without one, state
+                that plainly instead of hiding the whole reflection, and let
+                the note field carry the reader's own takeaway. */}
+            {tafsir ? (
+              <div className="border-b border-line px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Sprout size={14} className="text-success" />
+                  <span className="text-xs font-black text-success">{t("tadabbur.stepTitle")}</span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-ink">{tafsir.practicalStep}</p>
+                <button
+                  type="button"
+                  onClick={markStepDone}
+                  disabled={stepDone}
+                  className={`focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary mt-3 flex h-10 items-center justify-center gap-1.5 rounded-2xl text-xs font-black transition active:scale-95 ${
+                    stepDone
+                      ? "bg-success-soft text-success"
+                      : "bg-primary text-white shadow-md"
+                  } w-full`}
+                >
+                  {stepDone ? (
+                    <>
+                      <Check size={15} strokeWidth={3} />
+                      {t("tadabbur.stepDone")}
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} />
+                      {t("tadabbur.stepTodo")}
+                    </>
+                  )}
+                </button>
               </div>
-              <p className="mt-2 text-sm leading-6 text-ink">{tafsir.practicalStep}</p>
-              <button
-                type="button"
-                onClick={markStepDone}
-                disabled={stepDone}
-                className={`focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary mt-3 flex h-10 items-center justify-center gap-1.5 rounded-2xl text-xs font-black transition active:scale-95 ${
-                  stepDone
-                    ? "bg-success-soft text-success"
-                    : "bg-primary text-white shadow-md"
-                } w-full`}
-              >
-                {stepDone ? (
-                  <>
-                    <Check size={15} strokeWidth={3} />
-                    {t("tadabbur.stepDone")}
-                  </>
-                ) : (
-                  <>
-                    <Check size={15} />
-                    {t("tadabbur.stepTodo")}
-                  </>
-                )}
-              </button>
-            </div>
+            ) : (
+              <div className="border-b border-line px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Sprout size={14} className="text-gold-strong" />
+                  <span className="text-xs font-black text-gold-strong">
+                    {t("tadabbur.noTafsirTitle")}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-6 text-muted">{t("tadabbur.noTafsirHint")}</p>
+              </div>
+            )}
 
             {/* PERSONAL NOTE */}
             <div className="px-5 py-4">

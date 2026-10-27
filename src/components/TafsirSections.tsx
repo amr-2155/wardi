@@ -2,9 +2,11 @@
 
 import { BookOpen, ChevronDown, Compass, HeartHandshake, Lightbulb, ShieldCheck } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { useLocale } from "@/lib/locale";
 import type { TafsirEntry } from "@/lib/quran/types";
 
 export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
+  const { t } = useLocale();
   const [openKey, setOpenKey] = useState<string | null>("meaning");
 
   const toggle = (key: string) => setOpenKey((prev) => (prev === key ? null : key));
@@ -12,8 +14,8 @@ export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
   return (
     <div className="flex flex-col gap-2">
       <AccordionItem
-        label="المعنى الميسر"
-        note={`من ${tafsir.tafsirSource}`}
+        label={t("tadabbur.section.tafsir")}
+        note={t("tadabbur.section.fromSource", { source: tafsir.tafsirSource })}
         icon={BookOpen}
         open={openKey === "meaning"}
         onToggle={() => toggle("meaning")}
@@ -21,8 +23,8 @@ export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
         <p className="text-sm leading-7 text-ink">{tafsir.simplifiedMeaning}</p>
       </AccordionItem>
       <AccordionItem
-        label="بمعنى أبسط"
-        note="صياغة معاصرة مساعدة"
+        label={t("tadabbur.section.simple")}
+        note={t("tadabbur.section.simpleSub")}
         icon={Lightbulb}
         open={openKey === "simpler"}
         onToggle={() => toggle("simpler")}
@@ -30,8 +32,8 @@ export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
         <p className="text-sm leading-7 text-ink">{tafsir.simplerMeaning}</p>
       </AccordionItem>
       <AccordionItem
-        label="كيف أعيش بها؟"
-        note="تطبيق عملي"
+        label={t("tadabbur.section.live")}
+        note={t("tadabbur.section.liveSub")}
         icon={HeartHandshake}
         open={openKey === "live"}
         onToggle={() => toggle("live")}
@@ -46,8 +48,8 @@ export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
         </ul>
       </AccordionItem>
       <AccordionItem
-        label="وقفة للتدبر"
-        note="سؤال للتأمل"
+        label={t("tadabbur.section.reflect")}
+        note={t("tadabbur.section.reflectSub")}
         icon={Compass}
         open={openKey === "reflect"}
         onToggle={() => toggle("reflect")}
@@ -57,10 +59,7 @@ export function TafsirSections({ tafsir }: { tafsir: TafsirEntry }) {
 
       <div className="mt-1 flex items-start gap-1.5 rounded-2xl border border-line bg-surface-2 px-3 py-2.5 text-[10px] leading-5 text-muted">
         <ShieldCheck size={13} className="mt-0.5 shrink-0 text-success" />
-        <p>
-          «المعنى الميسر» مُلخّص من {tafsir.tafsirSource} بمراجعة موضوعية يدوية. أقسام «بمعنى أبسط»
-          و«كيف أعيش بها؟» و«وقفة للتدبر» صياغة مساعدة للفهم، وليست تفسيرًا منقولًا عن مفسِّر معيّن.
-        </p>
+        <p>{t("tafsir.disclaimer", { source: tafsir.tafsirSource })}</p>
       </div>
     </div>
   );
@@ -91,7 +90,7 @@ function AccordionItem({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 p-3.5 text-right"
+        className="flex w-full items-center gap-2.5 p-3.5 text-end"
       >
         <span
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${

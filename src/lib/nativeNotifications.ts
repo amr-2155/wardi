@@ -196,10 +196,13 @@ export async function schedulePrayerNotifications(
     if (settings.preAdhanReminderEnabled) {
       const at = t - settings.preAdhanLeadMin * 60000;
       if (at > now) {
+        // `reminder.*` is the daily WARD reminder ({{n}}/{{from}}/{{to}}).
+        // The pre-adhan reminder has its own {{prayer}} keys; using the ward
+        // body here shipped a notification with literal {{n}}/{{from}}/{{to}}.
         toSchedule.push({
           id: ID_PRE + i,
-          title: label("reminder.title"),
-          body: label("reminder.body", { prayer: name }),
+          title: label("prayer.reminderTitle"),
+          body: label("prayer.reminderBody", { prayer: name }),
           at: new Date(at),
           extra: { kind: "pre", prayer: p },
         });

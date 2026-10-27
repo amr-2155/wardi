@@ -2,16 +2,18 @@
 
 import { CalendarCheck2, History, RotateCcw } from "lucide-react";
 import { Card } from "@/components/ui";
-import { addDays, formatArabicShort, parseKey } from "@/lib/dates";
+import { addDays, parseKey } from "@/lib/dates";
+import { formatLocaleShort, getWeekdayShort, useLocale } from "@/lib/locale";
 import type { WardData } from "@/hooks/useWardData";
 
 export function HistoryView({ data }: { data: WardData }) {
+  const { t, locale } = useLocale();
   const lastWeek = Array.from({ length: 7 }, (_, i) => {
     const key = addDays(data.today, -(6 - i));
     const reading = data.history.find((item) => item.date === key);
     return {
       key,
-      label: parseKey(key).toLocaleDateString("ar-EG", { weekday: "short" }),
+      label: getWeekdayShort(locale, parseKey(key)),
       pages: reading?.pages ?? 0,
       done: reading?.completed === true,
       partial: reading !== undefined && !reading.completed,
@@ -20,17 +22,29 @@ export function HistoryView({ data }: { data: WardData }) {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-5 pb-32 pt-6">
-      <h2 className="text-2xl font-black">سجل الورد</h2>
+      <h2 className="text-2xl font-black">{t("history.title")}</h2>
 
       {/* SUMMARY */}
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <SummaryCard label="هذا الأسبوع" value={`${data.weekRead}`} unit="صفحة" />
-        <SummaryCard label="أيام الورد" value={`${data.totalDays}`} unit="يوم" />
-        <SummaryCard label="إجمالي الصفحات" value={`${data.totalRead}`} unit="صفحة" />
+        <SummaryCard
+          label={t("history.thisWeek")}
+          value={`${data.weekRead}`}
+          unit={t("week.pages")}
+        />
+        <SummaryCard
+          label={t("history.wardDays")}
+          value={`${data.totalDays}`}
+          unit={t("week.days")}
+        />
+        <SummaryCard
+          label={t("history.totalPages")}
+          value={`${data.totalRead}`}
+          unit={t("week.pages")}
+        />
       </div>
 
       {/* LAST 7 DAYS */}
-      <p className="mb-2 mt-5 text-[11px] font-bold text-muted">آخر 7 أيام</p>
+      <p className="mb-2 mt-5 text-[11px] font-bold text-muted">{t("history.last7")}</p>
       <Card className="flex items-end justify-between gap-1 p-4">
         {lastWeek.map((day) => (
           <div key={day.key} className="flex flex-1 flex-col items-center gap-1.5">
@@ -43,25 +57,27 @@ export function HistoryView({ data }: { data: WardData }) {
                     ? "bg-primary/15 text-primary"
                     : "bg-surface-2 text-muted"
               }`}
-              title={`${day.pages} صفحة`}
+              title={`${day.pages} ${t("week.pages")}`}
             >
               {day.done || day.partial ? day.pages : "·"}
             </div>
-            <span className="text-[9px] text-muted">{formatArabicShort(day.key)}</span>
+            <span className="text-[9px] text-muted">{formatLocaleShort(locale, day.key)}</span>
           </div>
         ))}
       </Card>
 
       {/* LIST */}
       <div className="mb-2 mt-5 flex items-center justify-between">
-        <p className="text-[11px] font-bold text-muted">التسجيلات</p>
-        <span className="text-[10px] text-muted">{data.history.length} تسجيل</span>
+        <p className="text-[11px] font-bold text-muted">{t("history.records")}</p>
+        <span className="text-[10px] text-muted">
+          {t("history.record", { n: data.history.length })}
+        </span>
       </div>
 
       {data.history.length === 0 ? (
         <Card className="p-10 text-center text-muted">
           <History size={30} className="mx-auto mb-3" />
-          لا يوجد سجل بعد — ابدأ وردك اليوم
+          {t("history.empty")}
         </Card>
       ) : (
         <div className="space-y-2">
@@ -79,9 +95,10 @@ export function HistoryView({ data }: { data: WardData }) {
                   {item.startPage} ← {item.endPage}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted">
-                  {formatArabicShort(item.date)} · الختمة {item.khatma}
-                  {item.mode === "manual" && " · تعديل"} · {item.pages} صفحة
-                  {!item.completed && " · جزئي"}
+                  {formatLocaleShort(locale, item.date)} · {t("history.khatma", { n: item.khatma })}
+                  {item.mode === "manual" && ` · ${t("history.edit")}`} ·{" "}
+                  {item.pages} {t("week.pages")}
+                  {!item.completed && ` · ${t("history.partial")}`}
                 </p>
               </div>
               <span className="text-xs font-black text-gold-strong">{item.pages}</span>
@@ -97,7 +114,7 @@ export function HistoryView({ data }: { data: WardData }) {
           className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger-soft text-xs font-bold text-danger transition active:scale-[0.98]"
         >
           <RotateCcw size={15} />
-          التراجع عن آخر تسجيل
+          {t("history.undo")}
         </button>
       )}
     </div>

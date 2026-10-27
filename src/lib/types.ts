@@ -67,7 +67,17 @@ export type TadabburJournalEntry = {
 };
 
 export type TabId = "home" | "history" | "khatma" | "library" | "settings";
-export type FullViewId = "reading" | "plan" | "stats" | "quran" | "ayah" | "mushaf";
+export type FullViewId =
+  | "reading"
+  | "plan"
+  | "stats"
+  | "quran"
+  | "ayah"
+  | "mushaf"
+  | "prayer"
+  | "adhkar"
+  | "niyyah"
+  | "occasions";
 
 export const DEFAULT_SETTINGS: WardSettings = {
   currentPage: 1,

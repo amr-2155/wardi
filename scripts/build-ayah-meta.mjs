@@ -1,7 +1,7 @@
 // Generates public/quran/ayah-meta.json: per-ayah mushaf metadata
 // (page, juz, hizbQuarter) from the Al Quran Cloud API (islamic.network).
 // Text is NOT taken from here — only the printed-mushaf pagination numbers.
-import { mkdirSync, writeFileSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,7 +20,6 @@ if (!Array.isArray(surahs) || surahs.length !== 114) {
 }
 
 // Canonical ayah order: surah id asc, then numberInSurah asc.
-let total = 0;
 const pages = new Set();
 const juzes = new Set();
 const quarters = new Set();

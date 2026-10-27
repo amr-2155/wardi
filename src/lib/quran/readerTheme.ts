@@ -1,9 +1,9 @@
 "use client";
 
-export type MushafThemeId = "ivory" | "yellow" | "white" | "sepia" | "dark";
+export type MushafThemeId = "ivory" | "yellow" | "white" | "sepia" | "dark" | "midnight";
 
 /** Reading fit: how the page fills the screen (see globals.css .mushaf-stage). */
-export type MushafFitId = "full" | "width" | "cozy" | "auto";
+export type MushafFitId = "page" | "full" | "width" | "cozy" | "auto";
 
 export const THEME_KEY = "ward:v2:mushaf:theme";
 
@@ -19,6 +19,7 @@ export const MUSHAF_THEMES: MushafTheme[] = [
   { id: "white", page: "#ffffff" },
   { id: "sepia", page: "#eee1c6" },
   { id: "dark", page: "#24201c" },
+  { id: "midnight", page: "#000000" },
 ];
 
 export const DEFAULT_MUSHAF_THEME: MushafThemeId = "yellow";
@@ -44,19 +45,19 @@ export function saveMushafTheme(id: MushafThemeId): void {
 
 export const FIT_KEY = "ward:v2:mushaf:fit";
 
-export const MUSHAF_FITS: MushafFitId[] = ["full", "width", "cozy", "auto"];
+export const MUSHAF_FITS: MushafFitId[] = ["page", "full", "width", "cozy", "auto"];
 
-export const DEFAULT_MUSHAF_FIT: MushafFitId = "full";
+/* The stage between the pinned bars must show the whole page with its edges
+   intact (a printed mushaf, not a cropped screenshot), so the default fit is
+   "page". "full" stays available in the appearance sheet for edge-to-edge
+   immersive reading, and a stored choice is never rewritten. */
+export const DEFAULT_MUSHAF_FIT: MushafFitId = "page";
 
 export function loadMushafFit(): MushafFitId {
   try {
     const raw = localStorage.getItem(FIT_KEY);
     if (!raw) return DEFAULT_MUSHAF_FIT;
     const id = JSON.parse(raw) as MushafFitId;
-    // Migrate legacy "auto"/"width" to "full": a page that fills the screen
-    // edge-to-edge is the reading fit the user asked for (Tarteel-style).
-    if (id === "auto") return "full";
-    if (id === "width") return "full";
     return MUSHAF_FITS.includes(id) ? id : DEFAULT_MUSHAF_FIT;
   } catch {
     return DEFAULT_MUSHAF_FIT;

@@ -191,8 +191,90 @@ export function pageAyahs(dataset: QuranDataset, meta: AyahMeta, page: number): 
   return out;
 }
 
-/** True when this mushaf page is the very first page of a surah. */
-export function pageStartsSurah(ayahs: PageAyah[]): PageAyah | null {
+/* ------------------------------------------------------------------ *
+ * Guided auto-scroll dwell time
+ *
+ * The reader advanced one page every fixed interval regardless of how
+ * much was actually on it, so a page carrying six words sat on screen
+ * for as long as one carrying forty ayat.
+ *
+ * Reading time tracks the printed text; recitation time also tracks the
+ * number of stops. So the page's score blends its total character weight
+ * with its ayah count, both measured against this dataset's own average,
+ * then softened with a square root so a handful of very dense pages
+ * cannot stretch the wait for everything else.
+ * ------------------------------------------------------------------ */
+
+/** Safety net only. Measured across the whole mushaf the factor lands in
+    roughly 0.6–1.45, so these bounds should never bind. */
+const DWELL_MIN_FACTOR = 0.5;
+const DWELL_MAX_FACTOR = 2;
+
+const WEIGHT_SHARE = 0.65;
+const AYAH_SHARE = 0.35;
+
+type PageMeasure = { weight: number; ayahs: number };
+
+/**
+ * Mean weight and ayah count of one page of this dataset.
+ *
+ * Measured once per dataset rather than against a magic constant, so
+ * "average page" means whatever text is actually loaded. Keyed on the
+ * dataset object, which is stable state, so this costs one pass per load
+ * and is reused for every page turn.
+ */
+const datasetAverages = new WeakMap<QuranDataset, { weight: number; ayahs: number }>();
+
+function measurePage(dataset: QuranDataset, meta: AyahMeta, page: number): PageMeasure {
+  const range = pageIndexRange(meta, page);
+  if (!range) return { weight: 0, ayahs: 0 };
+  const [start, end] = range;
+  let weight = 0;
+  for (let i = start; i <= end; i += 1) {
+    const ref = refFromGlobalId(dataset, i + 1);
+    const resolved = ref ? resolveAyah(ref, dataset) : null;
+    if (resolved) weight += textWeight(resolved.verse.text);
+  }
+  return { weight, ayahs: end - start + 1 };
+}
+
+function averagesFor(dataset: QuranDataset, meta: AyahMeta): { weight: number; ayahs: number } {
+  const cached = datasetAverages.get(dataset);
+  if (cached) return cached;
+  /* Every 8th page is plenty for an average and keeps this off the
+     critical path; the result is only ever a scaling reference. */
+  const step = 8;
+  let weight = 0;
+  let ayahs = 0;
+  let pages = 0;
+  for (let p = 1; p <= meta.pages; p += step) {
+    const m = measurePage(dataset, meta, p);
+    weight += m.weight;
+    ayahs += m.ayahs;
+    pages += 1;
+  }
+  const avg = pages > 0 ? { weight: weight / pages, ayahs: ayahs / pages } : { weight: 0, ayahs: 0 };
+  datasetAverages.set(dataset, avg);
+  return avg;
+}
+
+/**
+ * Multiplier for the auto-scroll interval on a given page.
+ *
+ * Returns 1 when the page cannot be measured, so an unloaded dataset or a
+ * page missing from the metadata behaves exactly as it did before.
+ */
+export function pageDwellFactor(dataset: QuranDataset, meta: AyahMeta, page: number): number {
+  const avg = averagesFor(dataset, meta);
+  if (avg.weight <= 0 || avg.ayahs <= 0) return 1;
+  const m = measurePage(dataset, meta, page);
+  if (m.weight <= 0 || m.ayahs <= 0) return 1;
+  const blend = WEIGHT_SHARE * (m.weight / avg.weight) + AYAH_SHARE * (m.ayahs / avg.ayahs);
+  const factor = Math.sqrt(blend);
+  return Math.min(DWELL_MAX_FACTOR, Math.max(DWELL_MIN_FACTOR, factor));
+}
+
+/** True when this mushaf page is the very first page of a surah. */export function pageStartsSurah(ayahs: PageAyah[]): PageAyah | null {
   return ayahs.find((a) => a.verseNumber === 1) ?? null;
 }
 

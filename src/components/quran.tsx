@@ -2,19 +2,27 @@
 
 import { Bookmark, Copy, ExternalLink, Share2, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
+import { useLocale } from "@/lib/locale";
 import type { RelatedAyah, RelationType } from "@/lib/quran/types";
 import { DATASET_META } from "@/lib/quran/store";
 
-export const RELATION_LABELS: Record<RelationType, string> = {
-  theme: "سياق مشترك",
-  topic: "نفس الموضوع",
-  similar_context: "سياق متشابه",
-  same_concept: "نفس المفهوم",
-  related_story: "قصة ذات صلة",
-  related_dua: "دعاء مرتبط",
-  related_warning: "تحذير مرتبط",
-  related_promise: "وعد مرتبط",
-  related_attribute: "صفة مرتبطة",
+/**
+ * Relation badge keys, resolved through `t()` at render time.
+ *
+ * The Arabic text that used to be inlined here was byte-identical to
+ * `quranRelation.*`, so the dictionary now owns it and the English side stops
+ * being a hardcoded-Arabic-only label.
+ */
+export const RELATION_LABEL_KEYS: Record<RelationType, string> = {
+  theme: "quranRelation.theme",
+  topic: "quranRelation.topic",
+  similar_context: "quranRelation.similar_context",
+  same_concept: "quranRelation.same_concept",
+  related_story: "quranRelation.related_story",
+  related_dua: "quranRelation.related_dua",
+  related_warning: "quranRelation.related_warning",
+  related_promise: "quranRelation.related_promise",
+  related_attribute: "quranRelation.related_attribute",
 };
 
 export function SurahBadge({ name, count }: { name: string; count?: number }) {
@@ -39,12 +47,15 @@ export function VerseText({
 }
 
 export function AyahMetaFooter() {
+  const { t } = useLocale();
   return (
     <div className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-2 p-3 text-[10px] text-muted">
       <ShieldCheck size={14} className="shrink-0 text-success" />
       <p>
-        نص قرآني موثوق من {DATASET_META.source} — موثّق بتاريخ {DATASET_META.verificationDate} ومتحقق
-        منه بالبصمة الرقمية.
+        {t("quran.verified", {
+          source: DATASET_META.source,
+          date: DATASET_META.verificationDate,
+        })}
       </p>
     </div>
   );
@@ -61,15 +72,16 @@ export function AyahActionBar({
   onCopy: () => void;
   onShare: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <div className="flex items-center gap-2">
-      <ActionButton label="حفظ" active={isBookmarked} onClick={onToggleBookmark}>
+      <ActionButton label={t("quran.bookmark")} active={isBookmarked} onClick={onToggleBookmark}>
         <Bookmark size={16} fill={isBookmarked ? "currentColor" : "none"} />
       </ActionButton>
-      <ActionButton label="نسخ" onClick={onCopy}>
+      <ActionButton label={t("quran.copy")} onClick={onCopy}>
         <Copy size={16} />
       </ActionButton>
-      <ActionButton label="مشاركة" onClick={onShare}>
+      <ActionButton label={t("quran.share")} onClick={onShare}>
         <Share2 size={16} />
       </ActionButton>
     </div>
@@ -108,18 +120,19 @@ export function RelatedItem({
   onOpen,
 }: {
   related: RelatedAyah;
-  onOpen: (ayahId: string) => void;
-}) {
+onOpen: (ayahId: string) => void;
+  }) {
+  const { t } = useLocale();
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(related.ayah)}
-      className="w-full rounded-2xl border border-line bg-surface p-3 text-right transition active:scale-[0.99]"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[10px] font-black text-primary">
-          {RELATION_LABELS[related.relationType]}
-        </span>
+      <button
+        type="button"
+        onClick={() => onOpen(related.ayah)}
+        className="w-full rounded-2xl border border-line bg-surface p-3 text-end transition active:scale-[0.99]"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[10px] font-black text-primary">
+            {t(RELATION_LABEL_KEYS[related.relationType])}
+          </span>
         <ExternalLink size={13} className="text-muted" />
       </div>
       <p className="mt-2 font-quran text-base leading-[2]">{related.reason}</p>

@@ -112,6 +112,15 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
   const lockedRef = useRef(false);
   const alertTimerRef = useRef<number | null>(null);
   const dayKeyRef = useRef<string>(localDateKey(new Date()));
+  const todaySigRef = useRef<string>("");
+  /* Which events the OS notification layer already covers. Declared with the
+     other refs (not down beside the scheduler effect) because fireAdhan reads
+     it, and a ref declared later would be a temporal-dead-zone error in its
+     dependency list. */
+  const nativeCoveredRef = useRef<{ native: boolean; events: Set<string> }>({
+    native: false,
+    events: new Set(),
+  });
 
   /* ── Persist settings + keep refs in sync with latest render values ── */
   useEffect(() => {
@@ -125,8 +134,10 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
 
   /* ── Geolocation ── */
   const requestLocation = useCallback(() => {
-    const s = settingsRef.current;
-    if (!s.autoLocation) return;
+    /* `autoLocation` gates the automatic lookup on start (see the effect
+       below); it must not gate an explicit tap. Both the settings panel and
+       the prayer screens render the button unconditionally, so returning here
+       made a live-looking control do nothing at all. */
     if (!("geolocation" in navigator)) {
       setLocationStatus("error");
       return;
@@ -196,6 +207,26 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
     }
     setPlaying(false);
   }, []);
+
+  /* ── Teardown ──
+     The alert auto-dismiss timer and the audio nodes outlived the provider
+     without this: an unmount left a pending setState and a still-playing
+     AudioContext holding the audio hardware open. */
+  useEffect(
+    () => () => {
+      if (alertTimerRef.current !== null) window.clearTimeout(alertTimerRef.current);
+      const a = audioRef.current;
+      if (a) {
+        a.pause();
+        a.onended = null;
+        a.onerror = null;
+        a.src = "";
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+    },
+    []
+  );
 
   const playChime = useCallback(() => {
     try {
@@ -282,9 +313,20 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  /* True when the OS notification layer already owns this event's sound. */
+  const nativeCovers = useCallback((kind: string, prayer: PrayerId) => {
+    const c = nativeCoveredRef.current;
+    return c.native && c.events.has(`${kind}:${prayer}`);
+  }, []);
+
   const fireAdhan = useCallback(
     async (prayer: PrayerId) => {
       const s = settingsRef.current;
+      /* The scheduled OS notification plays the bundled adhan on the adhan
+         channel. Playing in-app audio as well made the adhan sound twice on
+         Android. `nativeCoveredRef` recorded exactly this and was never read;
+         now the ticker defers to the native layer. */
+      if (nativeCovers("adhan", prayer)) return;
       const sound = ADHAN_SOUNDS.find((x) => x.id === s.adhanSoundId) ?? ADHAN_SOUNDS[0];
       const audio = ensureAudio();
       audio.src = sound.url;
@@ -328,13 +370,17 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
         showAlert("adhan", prayer, "adhan.title", "adhan.autoplayNote");
       }
     },
-    [ensureAudio, showAlert]
+    [ensureAudio, showAlert, nativeCovers]
   );
 
   const fireReminder = useCallback(
     (prayer: PrayerId, time: Date) => {
       if (lockedRef.current && settingsRef.current.reminderSoundEnabled) playChime();
-      showAlert("reminder", prayer, "reminder.title", "reminder.body", time);
+      // The pre-adhan reminder is NOT the daily ward reminder: `reminder.body`
+      // takes {{n}}/{{from}}/{{to}} (ward page numbers), so reusing it here
+      // rendered literal ward placeholders in the banner. `prayer.*` keys
+      // take {{prayer}} and are the ones this alert actually means.
+      showAlert("reminder", prayer, "prayer.reminderTitle", "prayer.reminderBody", time);
     },
     [playChime, showAlert]
   );
@@ -390,10 +436,20 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
 
       const useCoords = { latitude: s.latitude, longitude: s.longitude };
       const { times, next: nx } = computeNextFromDay(nowD, useCoords, s.method, s.asr, nowD);
-      setToday(times);
-      todayRef.current = times;
+      /* The day's five timestamps only change when the day, the coordinates or
+         the method change — not once per second. Publishing a fresh object each
+         tick re-rendered every consumer 86,400 times a day and made the native
+         scheduler effect re-sign and re-check its events on every tick. Only
+         publish when the values actually differ. */
+      const timesSig = PRAYERS_ADHAN.map((p) => times[p].getTime()).join(",");
+      if (timesSig !== todaySigRef.current) {
+        todaySigRef.current = timesSig;
+        setToday(times);
+        todayRef.current = times;
+      }
       setNext(nx);
-      setCurrent(getCurrentPrayer(times, nowD));
+      const cur = getCurrentPrayer(times, nowD);
+      setCurrent((prev) => (prev === cur ? prev : cur));
       if (!s.enabled) return;
 
       const nowTs = nowD.getTime();
@@ -451,10 +507,6 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const nativeSigRef = useRef<string>("");
-  const nativeCoveredRef = useRef<{ native: boolean; events: Set<string> }>({
-    native: false,
-    events: new Set(),
-  });
   useEffect(() => {
     if (!isNativePlatform() || !today) return;
     const sig = prayerScheduleSignature(dayKeyRef.current, today, settings, coords);

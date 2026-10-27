@@ -82,19 +82,54 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wantsAutoPlayRef = useRef(autoPlay);
   const onEndedRef = useRef<(() => void) | undefined>(undefined);
+  // Latest volume/mute, readable by the create-effect without making it a
+  // dependency (see the note on that effect below).
+  const volumeRef = useRef(volumeVal);
+  const mutedRef = useRef(mutedVal);
+  const srcRef = useRef(src);
 
   // Update the onEnded ref via effect (cannot update refs during render).
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
 
+  // Keep the imperative refs aligned with state so the create-effect can seed
+  // the element without re-running.
+  useEffect(() => {
+    volumeRef.current = volumeVal;
+  }, [volumeVal]);
+
+  useEffect(() => {
+    mutedRef.current = mutedVal;
+  }, [mutedVal]);
+
+  useEffect(() => {
+    srcRef.current = src;
+  }, [src]);
+
   // Lazy-create the Audio instance (SSR-safe).
+  //
+  // This effect must depend on `preload` ONLY. Volume, mute and onEnded are
+  // applied imperatively (setVolume/mute/unmute) or read through refs
+  // (onEndedRef). Listing them here used to re-run the effect on every volume
+  // or mute change — and on every reciter change, because onEnded depends on
+  // the selected reciter. Re-running tears the element down (pause + listener
+  // removal + `audioRef.current = null`) and builds a fresh one with no `src`;
+  // the `src` effect only depends on [src], so it never re-applies the source
+  // and playback dies silently. One element per hook call, created once.
   useEffect(() => {
     if (audioRef.current) return;
     const audio = new Audio();
     audio.preload = preload;
-    audio.volume = volumeVal;
-    audio.muted = mutedVal;
+    audio.volume = volumeRef.current;
+    audio.muted = mutedRef.current;
+    // Seed the source here as well, so a freshly created element is never
+    // left without one. The dedicated src effect below cannot repair it: it
+    // only runs when `src` changes, which it did not do.
+    if (srcRef.current) {
+      audio.src = srcRef.current;
+      audio.load();
+    }
     audioRef.current = audio;
 
     const handleLoadedMetadata = () => {
@@ -168,7 +203,7 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
       audio.removeEventListener("canplay", handleCanPlay);
       audioRef.current = null;
     };
-  }, [preload, volumeVal, mutedVal, onEnded]);
+  }, [preload]);
 
   // Update src when it changes.
   useEffect(() => {

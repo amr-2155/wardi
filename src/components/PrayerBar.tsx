@@ -100,7 +100,7 @@ export function PrayerBar() {
         }}
         aria-expanded={open}
         aria-label={t("prayer.barLabel")}
-        className={`w-full cursor-pointer overflow-hidden rounded-3xl border text-right transition-all duration-300 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+        className={`w-full cursor-pointer overflow-hidden rounded-3xl border text-start transition-all duration-300 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
           open ? "border-gold/50 bg-surface shadow-lg" : "border-line bg-surface shadow-sm"
         }`}
       >
@@ -226,7 +226,7 @@ export function PrayerBar() {
                         <PrayerIcon prayer={p} />
                       </span>
                       <span
-                        className={`inline-flex flex-1 items-center justify-start gap-1.5 rounded-2xl text-right text-xs font-black ${
+                        className={`inline-flex flex-1 items-center justify-start gap-1.5 rounded-2xl text-start text-xs font-black ${
                           isNext ? "text-white" : isNow ? "text-primary-deep" : "text-ink"
                         }`}
                       >
@@ -326,7 +326,7 @@ function AlertBanner({ alert, onClose }: { alert: PrayerAlert; onClose: () => vo
         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconTone}`}>
           {isAdhan ? <Volume2 size={20} /> : <Bell size={18} />}
         </span>
-        <div className="min-w-0 flex-1 text-right">
+        <div className="min-w-0 flex-1 text-start">
           <p className="text-sm font-black text-ink">{title}</p>
           <p className="mt-0.5 text-xs font-bold text-muted">
             <AlertBody alert={alert} />
@@ -352,10 +352,23 @@ function AlertBody({ alert }: { alert: PrayerAlert }) {
   let body: string;
   switch (alert.kind) {
     case "adhan":
-      body = t("adhan.playingBody", { prayer: prayerLabel, time: formatTime(alert.time ?? new Date(), arabicDigits) });
+      // The provider puts a real message key in `body`: `adhan.playingBody`
+      // when audio actually started, `adhan.playError` / `adhan.autoplayNote`
+      // when it did not. Re-deriving the success text from `kind` here would
+      // report the adhan as playing during a playback failure, so failures
+      // are shown with the same params the provider used for the OS notification.
+      body =
+        alert.body === "adhan.playingBody"
+          ? t("adhan.playingBody", {
+              prayer: prayerLabel,
+              time: formatTime(alert.time ?? new Date(), arabicDigits),
+            })
+          : t(alert.body, { prayer: prayerLabel, time: formatTime(alert.time ?? new Date(), arabicDigits) });
       break;
     case "reminder":
-      body = t("reminder.body", { prayer: prayerLabel });
+      // `alert.body` is already a resolved key (`prayer.reminderBody`), and
+      // `prayer` is a fixed adhan prayer, so the label is used as the param.
+      body = t(alert.body, { prayer: prayerLabel });
       break;
     case "iqamaReminder":
       body = t("iqama.soonBody", { prayer: prayerLabel });

@@ -12,19 +12,31 @@ export function NiyyahView({ onBack }: { onBack: () => void }) {
   const [items, setItems] = useState<NiyyahItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- hydration-safe load */
   useEffect(() => {
     setItems(loadNiyyahItems());
+    setLoaded(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* Before the load above has run, `items` is still the empty initial state.
+     Saving it would write "[]" over the stored intentions; if the app is killed
+     in that window the data is gone. Same guard AdhkarView uses. */
   useEffect(() => {
+    if (!loaded) return;
     saveNiyyahItems(items);
-  }, [items]);
+  }, [items, loaded]);
 
+  /* Equal timestamps must compare equal: the old comparator returned -1 in both
+     directions, so two quick-adds in the same millisecond sorted differently
+     depending on the engine's sort. */
   const sorted = useMemo(
-    () => [...items].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    () =>
+      [...items].sort((a, b) =>
+        a.createdAt === b.createdAt ? 0 : a.createdAt < b.createdAt ? 1 : -1
+      ),
     [items]
   );
 
@@ -43,9 +55,7 @@ export function NiyyahView({ onBack }: { onBack: () => void }) {
   };
 
   const removeItem = (item: NiyyahItem) => {
-    const ok = window.confirm(
-      locale === "ar" ? "هل تريد حذف هذه النية؟" : "Delete this intention?"
-    );
+    const ok = window.confirm(t("niyyah.deleteConfirm"));
     if (!ok) return;
     setItems((prev) => prev.filter((it) => it.id !== item.id));
   };
@@ -121,6 +131,14 @@ export function NiyyahView({ onBack }: { onBack: () => void }) {
           initial={editingId ? sorted.find((it) => it.id === editingId) ?? null : null}
           onSave={(title, note, category) => {
             if (editingId) {
+              /* If the row vanished under the editor (deleted from another
+                 surface, or trimmed by the cap) the old map matched nothing and
+                 the sheet closed with no change and no error. Drop the stale
+                 id instead of pretending the edit was saved. */
+              if (!items.some((it) => it.id === editingId)) {
+                setEditingId(null);
+                return;
+              }
               setItems((prev) =>
                 prev.map((it) => (it.id === editingId ? { ...it, title, note, category } : it))
               );

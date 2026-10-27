@@ -14,10 +14,19 @@ import { StatsView } from "@/components/views/Stats";
 import { AyahView } from "@/components/views/Ayah";
 import { QuranReaderView } from "@/components/views/QuranReader";
 import { MushafReaderView } from "@/components/views/MushafReader";
+import { PrayerView } from "@/components/views/PrayerView";
+import { AdhkarView } from "@/components/views/adhkar/AdhkarView";
+import { NiyyahView } from "@/components/views/NiyyahView";
+import { OccasionsView } from "@/components/views/OccasionsView";
+import { OnboardingOverlay } from "@/components/views/Onboarding";
 import { AudioPlayerProvider } from "@/components/providers/AudioProvider";
+import { PrayerProvider } from "@/components/providers/PrayerProvider";
 import { useQuran } from "@/hooks/useQuran";
 import { useWardData } from "@/hooks/useWardData";
+import { useLocale } from "@/lib/locale";
+import { loadOnboarding } from "@/lib/onboarding";
 import type { FullViewId, TabId } from "@/lib/types";
+import type { ReaderMode } from "@/components/SegmentedControl";
 
 type QuranRoute =
   | { mode: "ayah"; ayahId: string }
@@ -25,23 +34,35 @@ type QuranRoute =
   | null;
 
 export default function Page() {
+  const { t } = useLocale();
   const data = useWardData();
   const quran = useQuran({ dailyPages: data.dailyPages, totalPages: data.settings.totalPages });
   const [tab, setTab] = useState<TabId>("home");
   const [view, setView] = useState<FullViewId | null>(null);
+  /* Remembers whether the Mushaf was opened for the full mushaf or just
+     today's ward, so the reader boots in the matching mode. */
+  const [mushafMode, setMushafMode] = useState<ReaderMode>("ward");
   const [quranRoute, setQuranRoute] = useState<QuranRoute>(null);
   const [showTadabbur, setShowTadabbur] = useState(false);
+  /* First-launch setup. Lazy init reads localStorage once; the overlay writes
+     the seen-flag itself, so dismissing it can never reopen it. */
+  const [showOnboarding, setShowOnboarding] = useState(() => !loadOnboarding().seen);
 
   if (!data.loaded) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg text-ink">
-        <p className="animate-pulse text-sm font-bold text-muted">جاري تحميل وردي...</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg text-ink">
+        <span className="animate-glow-pulse flex h-20 w-20 items-center justify-center rounded-[26px] bg-gold text-3xl font-black text-primary-deep shadow-lg shadow-gold/25">
+          و
+        </span>
+        <p className="text-lg font-black">{t("app.name")}</p>
+        <p className="animate-pulse text-xs font-bold text-muted">{t("app.loading")}</p>
       </div>
     );
   }
 
   return (
-    <AudioPlayerProvider>
+    <PrayerProvider>
+      <AudioPlayerProvider>
       {(() => {
         if (view === "reading") {
           return <ReadingModeView data={data} onBack={() => setView(null)} />;
@@ -53,7 +74,26 @@ export default function Page() {
           return <StatsView data={data} onBack={() => setView(null)} />;
         }
         if (view === "mushaf") {
-          return <MushafReaderView data={data} quran={quran} onBack={() => setView(null)} />;
+          return (
+            <MushafReaderView
+              data={data}
+              quran={quran}
+              onBack={() => setView(null)}
+              initialMode={mushafMode}
+            />
+          );
+        }
+        if (view === "prayer") {
+          return <PrayerView onBack={() => setView(null)} />;
+        }
+        if (view === "adhkar") {
+          return <AdhkarView onBack={() => setView(null)} />;
+        }
+        if (view === "niyyah") {
+          return <NiyyahView onBack={() => setView(null)} />;
+        }
+        if (view === "occasions") {
+          return <OccasionsView onBack={() => setView(null)} />;
         }
         if (quranRoute?.mode === "ayah") {
           return (
@@ -85,7 +125,10 @@ export default function Page() {
               <HomeView
                 data={data}
                 quran={quran}
-                onOpen={setView}
+                onOpen={(v, mode) => {
+                  if (v === "mushaf" && mode) setMushafMode(mode);
+                  setView(v);
+                }}
                 onOpenTadabbur={() => setShowTadabbur(true)}
               />
             )}
@@ -94,6 +137,8 @@ export default function Page() {
             {tab === "library" && (
               <LibraryView
                 quran={quran}
+                data={data}
+                onOpen={setView}
                 onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
                 onOpenDaily={() =>
                   quran.daily && setQuranRoute({ mode: "ayah", ayahId: quran.daily.ref })
@@ -111,9 +156,13 @@ export default function Page() {
                 setQuranRoute({ mode: "ayah", ayahId });
               }}
             />
+            {showOnboarding && (
+              <OnboardingOverlay data={data} onDone={() => setShowOnboarding(false)} />
+            )}
           </div>
         );
       })()}
     </AudioPlayerProvider>
+    </PrayerProvider>
   );
 }

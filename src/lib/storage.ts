@@ -9,6 +9,7 @@ import type {
   WardSettings,
 } from "./types";
 import type { WardProgress } from "./quran/types";
+import { clearUserData } from "./userData";
 
 const V2_SETTINGS = "ward:v2:settings";
 const V2_HISTORY = "ward:v2:history";
@@ -100,7 +101,9 @@ export function sanitizeReading(raw: unknown): Reading | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   if (typeof r.id !== "string" || !isDateKey(r.date)) return null;
-  const pages = Math.max(1, Math.floor(num(r.pages, 1)));
+  const rawPages = Math.floor(num(r.pages, 1));
+  const completed = typeof r.completed === "boolean" ? r.completed : true;
+  const pages = completed ? Math.max(1, rawPages) : Math.max(0, rawPages);
   return {
     id: r.id,
     date: r.date,
@@ -111,7 +114,7 @@ export function sanitizeReading(raw: unknown): Reading | null {
       Math.floor(num(r.endPage, typeof r.startPage === "number" ? r.startPage : 1))
     ),
     pages,
-    completed: typeof r.completed === "boolean" ? r.completed : true,
+    completed,
     mode: r.mode === "manual" ? "manual" : "auto",
   };
 }
@@ -167,18 +170,17 @@ export function loadData(): WardAppData {
   return fallback;
 }
 
-export function saveData(data: WardAppData): void {
-  localStorage.setItem(V2_SETTINGS, JSON.stringify(data.settings));
-  localStorage.setItem(V2_HISTORY, JSON.stringify(data.history));
-  localStorage.setItem(V2_PROGRESS, JSON.stringify(data.progress));
-}
-
-export function clearAllData(): void {
-  localStorage.removeItem(V2_SETTINGS);
-  localStorage.removeItem(V2_HISTORY);
-  localStorage.removeItem(V2_PROGRESS);
-  localStorage.removeItem(LEGACY_SETTINGS);
-  localStorage.removeItem(LEGACY_HISTORY);
+export function saveData(data: WardAppData): boolean {
+  try {
+    localStorage.setItem(V2_SETTINGS, JSON.stringify(data.settings));
+    localStorage.setItem(V2_HISTORY, JSON.stringify(data.history));
+    localStorage.setItem(V2_PROGRESS, JSON.stringify(data.progress));
+    return true;
+  } catch {
+    // Quota exceeded, private-mode storage, or a disabled localStorage. The
+    // caller surfaces this as a failed save; there is nothing to recover here.
+    return false;
+  }
 }
 
 export function toExportJSON(data: WardAppData): string {
@@ -189,6 +191,10 @@ export function toExportJSON(data: WardAppData): string {
   );
 }
 
+
+export function clearAllData(): { userData: string[]; regenerable: string[] } {
+  return clearUserData();
+}
 const isAyahRef = (value: unknown): value is string =>
   typeof value === "string" && /^\d{1,3}:\d{1,3}$/.test(value);
 

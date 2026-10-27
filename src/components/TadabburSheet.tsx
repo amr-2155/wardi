@@ -1,14 +1,18 @@
 "use client";
 
-import { BookMarked, Check, Sparkles } from "lucide-react";
+import { BookMarked } from "lucide-react";
 import { useState } from "react";
-import { AyahActionBar, SurahBadge, VerseText } from "@/components/quran";
-import { TafsirSections } from "@/components/TafsirSections";
+import { AyahActionBar } from "@/components/quran";
+import { TadabburSection } from "@/components/views/TadabburSection";
 import { Sheet } from "@/components/ui";
+import { useLocale } from "@/lib/locale";
+import { shareVerseCard } from "@/lib/shareCard";
 import type { QuranData } from "@/hooks/useQuran";
 
-const APP_NAME = "وردي";
-
+/* Modal shell only. The reflection itself -- tafsir sections, timer, practical
+   step, personal note and the journal write -- lives in TadabburSection, which
+   is also what advances Quran-side progress via completeTadabbur(). Keeping the
+   sheet as the entry point preserves the existing trigger and route. */
 export function TadabburSheet({
   open,
   onClose,
@@ -20,12 +24,15 @@ export function TadabburSheet({
   quran: QuranData;
   onOpenAyah: (ayahId: string) => void;
 }) {
+  const { t } = useLocale();
   const [copied, setCopied] = useState(false);
   const ayahId = quran.daily?.ref ?? "";
   const resolved = quran.getAyah(ayahId);
-  const tafsir = quran.getTafsir(ayahId);
 
-  if (!open || !resolved || !tafsir) return null;
+  /* A daily ayah and a loaded dataset are all that is required. This used to
+     also demand a curated tafsir entry, but only 24 ayahs have one, so the
+     whole sheet silently returned null for almost every day. */
+  if (!open || !resolved) return null;
 
   const { verse, chapter } = resolved;
 
@@ -35,8 +42,12 @@ export function TadabburSheet({
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const handleShare = async () => {
-    const text = `«${verse.text}» — سورة ${chapter.name}، آية ${verse.number}. (من تطبيق ${APP_NAME})`;
+  const shareAsText = async () => {
+    const text = `«${verse.text}» — ${t("ayah.shareText", {
+      name: chapter.name,
+      number: verse.number,
+      app: t("app.name"),
+    })}`;
     if (navigator.share) {
       try {
         await navigator.share({ text });
@@ -50,44 +61,29 @@ export function TadabburSheet({
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const handleDone = () => {
-    quran.completeTadabbur();
-    onClose();
+  const handleShare = async () => {
+    await shareVerseCard(
+      {
+        text: verse.text,
+        reference: `${chapter.name} · ${verse.number}`,
+        eyebrow: t("tadabbur.title"),
+        appName: t("app.name"),
+        theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+      },
+      shareAsText
+    );
   };
 
   return (
-    <Sheet open onClose={onClose} title="تدبر آية اليوم">
+    <Sheet open onClose={onClose} title={t("tadabbur.title")}>
       <div className="-mx-5 max-h-[72dvh] overflow-y-auto px-5 pb-2">
-        <div className="mb-2 flex items-center justify-center gap-1 text-[11px] text-muted">
-          <Sparkles size={12} className="text-gold-strong" />
-          آية اليوم من وردك
-        </div>
-
-        {/* VERSE */}
-        <div className="rounded-3xl border border-gold/30 bg-gold-soft/30 p-5 text-center">
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <SurahBadge name={chapter.name} count={chapter.verses.length} />
-          </div>
-          <VerseText text={verse.text} className="text-xl sm:text-2xl leading-[2.3]" />
-          <p className="mt-4 text-[11px] font-bold text-muted">
-            سورة {chapter.name} — الآية {verse.number}
-          </p>
-        </div>
-
-        {/* TAFSIR */}
-        <div className="mt-4">
-          <TafsirSections tafsir={tafsir} />
-        </div>
-
-        {/* DONE */}
-        <button
-          type="button"
-          onClick={handleDone}
-          className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-black text-white shadow-lg transition active:scale-[0.98]"
-        >
-          <Check size={20} strokeWidth={3} />
-          تم التدبر
-        </button>
+        <TadabburSection
+          candidate={ayahId}
+          candidateResolved={resolved}
+          wardDay={quran.wardDay}
+          quran={quran}
+          showHeader={false}
+        />
 
         {/* ACTIONS */}
         <div className="mt-3">

@@ -4,6 +4,15 @@ const V2_ADHKAR_COUNTS = "ward:v2:adhkar-counts";
 const V2_ADHKAR_FAVORITES = "ward:v2:adhkar-favorites";
 const V2_NIYYAH = "ward:v2:niyyah";
 
+/**
+ * Upper bound on persisted intentions. A bound is needed because the whole
+ * list is parsed and re-serialized on every change; picking the wrong END of
+ * the list to drop is what made the previous `slice(-200)` silently discard
+ * the intention the user had just added (the view stores newest-first, so the
+ * last element is the oldest one).
+ */
+const NIYYAH_LIMIT = 200;
+
 export type AdhkarCounts = {
   date: string;
   items: Record<string, number>;
@@ -97,7 +106,10 @@ export function loadNiyyahItems(): NiyyahItem[] {
 
 export function saveNiyyahItems(items: NiyyahItem[]): void {
   try {
-    localStorage.setItem(V2_NIYYAH, JSON.stringify(items.slice(-200)));
+    /* Truncate by age, never by array position: an intention added a moment
+       ago must not be the one dropped, whichever order the caller keeps. */
+    const newestFirst = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    localStorage.setItem(V2_NIYYAH, JSON.stringify(newestFirst.slice(0, NIYYAH_LIMIT)));
   } catch {
     /* ignore */
   }

@@ -17,6 +17,12 @@
   --color-primary-deep: var(--primary-deep);
   --color-primary-soft: var(--primary-soft);
   --color-primary-hover: var(--primary-hover);
+  /* Active/elevated primary text. Both :root and .dark define --primary-ink; a
+     raw custom property is invisible to Tailwind v4, so without this mapping
+     `text-primary-ink` emitted no rule at all and fell back to the inherited
+     colour -- wrong in dark mode, where --primary-ink is #93d3b6. */
+  --color-primary-ink: var(--primary-ink);
+  --color-line-2: var(--line-2);
   --color-gold: var(--gold);
   --color-gold-strong: var(--gold-strong);
   --color-gold-soft: var(--gold-soft);
@@ -51,21 +57,78 @@
 
 html{--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light;scroll-behavior:smooth}
 
+/* Accent themes: only the gold family is re-tinted, so every surface keeps
+   its light/dark identity while buttons, badges and glows follow the accent. */
+:root[data-accent="emerald"]{--gold:#2fa36f;--gold-strong:#1e7a52;--gold-soft:#e2f3e9;--gold-hover:#45b984}
+.dark[data-accent="emerald"]{--gold:#54c78d;--gold-strong:#86dcab;--gold-soft:#12271d;--gold-hover:#6ad29c}
+:root[data-accent="sapphire"]{--gold:#3a7bd5;--gold-strong:#2a5fa9;--gold-soft:#e4edf9;--gold-hover:#5a93e0}
+.dark[data-accent="sapphire"]{--gold:#6aa5e8;--gold-strong:#9dc3f2;--gold-soft:#142236;--gold-hover:#7fb0ec}
+:root[data-accent="maroon"]{--gold:#a43d5c;--gold-strong:#7f2b44;--gold-soft:#f8e5eb;--gold-hover:#b95572}
+.dark[data-accent="maroon"]{--gold:#d4728c;--gold-strong:#e8a0b2;--gold-soft:#2f151d;--gold-hover:#dd8599}
+
 html.dark{--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}
 
 body{background:var(--bg);min-height:100dvh;color:var(--ink);font-family:var(--font-cairo), "Segoe UI", system-ui, sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizelegibility}
 
 .font-quran{letter-spacing:normal;word-spacing:normal;font-weight:400}
 
-.display-2xl{letter-spacing:-.02em;font-size:2.5rem;font-weight:900;line-height:1.1}
+/* ==========================================================================
+   Arabic typography
 
-.display-xl{letter-spacing:-.01em;font-size:2rem;font-weight:900;line-height:1.1}
+   Two families, one rule: Cairo for the interface, Amiri Quran for the words
+   being recited. Cairo is a UI face — its tight, even rhythm is right for
+   labels and buttons, and wrong for tashkeel, where the harakat sit far above
+   the baseline and collide with the line above. Amiri Quran is drawn for that:
+   a Naskh with the vertical room the marks need.
 
-.display-lg{font-size:1.5rem;font-weight:800;line-height:1.15}
+   Both classes are unlayered, so they beat Tailwind's text-* utilities on the
+   same element. That is deliberate — these are the two places in the app where
+   the font choice is the design, not a default.
+   ========================================================================== */
 
-.display-md{font-size:1.25rem;font-weight:700;line-height:1.2}
+/* Dhikr / Quran body text: Naskh, generous leading, no synthetic bold (the
+   family ships 400 only, and a faked bold smears the diacritics). */
+.text-dhikr{
+  font-family:var(--font-quran-var), "Amiri Quran", serif;
+  font-weight:400;
+  font-synthesis:none;
+  font-size:1.1875rem;
+  line-height:2.15;
+  letter-spacing:0;
+  word-spacing:.01em;
+  text-align:start;
+}
 
-.display-sm{font-size:1.125rem;font-weight:700;line-height:1.25}
+/* Standalone surah text, read the way a mushaf page is read: centred, larger,
+   with more air between the lines. */
+.text-dhikr-quran{
+  font-size:1.3125rem;
+  line-height:2.5;
+  text-align:center;
+}
+
+/* A fraction like "0 / 56" is a run of Latin digits inside an RTL paragraph.
+   Without isolation the pair flips and the user reads "56 / 0" — the count
+   and its target swapped, on the one number that tells them how much is left.
+   Isolating the run keeps the digits and the slash in left-to-right order,
+   whatever direction the surrounding sentence runs. */
+.num-ltr{
+  direction:ltr;
+  unicode-bidi:isolate;
+}
+
+/* Arabic joins by shape, so tracking — positive or negative — pulls the letters
+   apart. The display scale shipped with negative letter-spacing inherited from
+   a Latin type system; zero is the correct value for this app's language. */
+.display-2xl{letter-spacing:0;font-size:2.5rem;font-weight:900;line-height:1.2}
+
+.display-xl{letter-spacing:0;font-size:2rem;font-weight:900;line-height:1.2}
+
+.display-lg{letter-spacing:0;font-size:1.5rem;font-weight:800;line-height:1.25}
+
+.display-md{letter-spacing:0;font-size:1.25rem;font-weight:700;line-height:1.3}
+
+.display-sm{font-size:1.125rem;font-weight:700;line-height:1.35}
 
 .btn{justify-content:center;align-items:center;gap:calc(var(--spacing) * 2);border-radius:var(--radius-xl);--tw-font-weight:var(--font-weight-black);font-weight:var(--font-weight-black);--tw-shadow:0 4px 12px -2px var(--tw-shadow-color,#d9b36659);box-shadow:var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);transition:all .15s ease-out;display:inline-flex}
 
@@ -171,6 +234,9 @@ input[type=number]{appearance:textfield}
 
 .animate-pulse-subtle{animation:2s ease-in-out infinite pulse-subtle}
 
+@keyframes sky-drift{0%{transform:translateX(-14px)}50%{transform:translateX(14px)}to{transform:translateX(-14px)}}
+.animate-sky-drift{animation:26s ease-in-out infinite sky-drift}
+
 .animate-mushaf-emoji{transform-origin:50% 85%;will-change:transform, filter;animation:2.8s ease-in-out infinite mushaf-emoji;display:inline-block}
 
 .animate-delay-1{animation-delay:90ms}
@@ -238,8 +304,78 @@ input[type=number]{appearance:textfield}
 .mushaf-reader[data-mushaf-theme=sepia]{--mpaper-top:#efe2c6;--mpaper-bot:#e6d5b6;--mvignette:#4a381833;--mink:#4a3a1c;--mmuted:#4a3a1c99;--mgold:#9c7430;--mgold-strong:#7d5a1e;--mbar:#221c12d6;--mbar-border:#bc945457}
 
 .mushaf-reader[data-mushaf-theme=dark]{--mpaper-top:#262220;--mpaper-bot:#171412;--mvignette:#00000042;--mink:#ece7dc;--mmuted:#ece7dc9e;--mgold:#d7b873;--mgold-strong:#e8cf93;--mbar:#0a0a0adb;--mbar-border:#d7b8734d;--mbtn-border:#ffffff29;--mimg-filter:invert(.92) hue-rotate(180deg) saturate(.75) brightness(1.05);--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}
+.mushaf-reader[data-mushaf-theme=midnight]{--mpaper-top:#000;--mpaper-bot:#000;--mvignette:#00000000;--mink:#f2efe4;--mmuted:#f2efe4a6;--mgold:#e3c078;--mgold-strong:#f0d69a;--mbar:#000000e6;--mbar-border:#e3c07855;--mbtn-border:#ffffff2e;--mimg-filter:invert(.95) hue-rotate(180deg) saturate(.7) brightness(1.08);--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}
 
 .mushaf-stage{background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot))}
+
+/* ==========================================================================
+   Mushaf reader shell
+
+   The reader is one full-screen surface: a header that never moves, a footer
+   that never moves, and the mushaf page getting exactly the space that is
+   left between them — so no line of the Quran can end up behind a bar.
+
+   The height is a custom property so an Android WebView without `dvh` falls
+   back to `vh` instead of collapsing the shell to half the screen, and the
+   safe-area insets are read once here rather than at every call site.
+   ========================================================================== */
+.mushaf-reader{
+  --mushaf-h:100vh;
+  --mushaf-safe-top:env(safe-area-inset-top, 0px);
+  --mushaf-safe-bottom:env(safe-area-inset-bottom, 0px);
+}
+@supports (height:100dvh){
+  .mushaf-reader{--mushaf-h:100dvh}
+}
+
+/* The two bars share the paper of the page they frame: a hairline rule
+   instead of a floating black pill, so the reader reads as one continuous
+   sheet instead of a web page with toolbars on top of it. */
+.mushaf-bar{
+  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
+  color:var(--mink);
+}
+.mushaf-bar-top{border-bottom:1px solid color-mix(in oklab, var(--mgold) 26%, transparent)}
+.mushaf-bar-bottom{border-top:1px solid color-mix(in oklab, var(--mgold) 26%, transparent)}
+/* The bars float over the page instead of framing it, so they must not read as
+   opaque slabs pasted on: almost the paper colour plus a blur keeps the glyphs
+   underneath from showing through while the edge still looks like the same
+   sheet. */
+.mushaf-bar-overlay{
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent);
+  -webkit-backdrop-filter:blur(16px) saturate(1.05);
+  backdrop-filter:blur(16px) saturate(1.05);
+  box-shadow:0 16px 40px -30px color-mix(in oklab, var(--mink) 60%, transparent);
+}
+.mushaf-bar-btn{
+  color:var(--mink);
+  border:1px solid color-mix(in oklab, var(--mgold) 30%, transparent);
+  background:color-mix(in oklab, var(--mink) 7%, transparent);
+  transition:transform .12s ease, background-color .18s ease, color .18s ease;
+}
+.mushaf-bar-btn:active{transform:scale(.94)}
+.mushaf-bar-btn[data-active="true"]{
+  color:var(--mgold-strong);
+  background:color-mix(in oklab, var(--mgold) 20%, transparent);
+  border-color:color-mix(in oklab, var(--mgold) 46%, transparent);
+}
+.mushaf-bar-track{background:color-mix(in oklab, var(--mgold) 18%, transparent)}
+.mushaf-bar-fill{background:var(--mgold)}
+/* Fixed reading-position card: surah + juz/hizb + progress ring, with the page
+   number beneath. Frosted paper with a gold hairline and a soft top highlight,
+   so it reads as part of the sheet rather than a floating web toolbar. */
+.mushaf-pos-card{
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--mpaper-top) 76%, transparent),
+    color-mix(in oklab, var(--mpaper-bot) 66%, transparent));
+  border:1px solid color-mix(in oklab, var(--mgold) 34%, transparent);
+  box-shadow:
+    0 16px 34px -24px color-mix(in oklab, var(--mink) 72%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 32%, transparent);
+  -webkit-backdrop-filter:blur(12px) saturate(1.08);
+  backdrop-filter:blur(12px) saturate(1.08);
+}
+
 
 .mushaf-stage:after{content:"";pointer-events:none;background:radial-gradient(130% 110% at 50% 42%, transparent 72%, var(--mvignette) 100%);position:absolute;inset:0}
 
@@ -256,6 +392,41 @@ input[type=number]{appearance:textfield}
 .quran-reader[data-page-theme=white]{--qr-bg:#fff;--qr-text:#1c1a15;--qr-muted:#7a756a;--qr-gold:#a37f33;--qr-gold-strong:#8a6523;--qr-rule:#3c372838;--qr-float:#ffffffe0;--qr-mark:#a37f331a}
 
 .quran-reader[data-page-theme=black]{--qr-bg:radial-gradient(130% 95% at 50% -8%, #101010 0%, #0a0a0a 55%, #000 100%);--qr-text:#f2ede0;--qr-muted:#8d8672;--qr-gold:#c9a86b;--qr-gold-strong:#d8bd88;--qr-rule:#c9a86b4d;--qr-float:#0a0a0ad9;--qr-mark:#c9a86b1a}
+
+/* ==========================================================================
+   Focus visibility
+
+   Only 11 of 152 buttons carried a designed focus ring, and the rest fell back
+   to the UA outline — which `transition: all` and the custom `active:scale-*`
+   pressed styles visually wash out. Keyboard and switch users could not tell
+   where they were.
+
+   `:focus-visible` rather than `:focus` so a mouse or finger tap never lights
+   up a ring. The offset keeps it clear of the rounded corners these buttons
+   use. Modelled on shadcn/ui's focus-visible ring (MIT).
+   ========================================================================== */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{
+  outline:2px solid var(--primary);
+  outline-offset:2px;
+  border-radius:inherit;
+}
+
+/* Inputs already carry a filled background, so a plain outline reads as a thin
+   sliver at their edges; give them a ring that is visible against --surface-2. */
+:where(input,select,textarea):focus-visible{
+  outline:2px solid var(--primary);
+  outline-offset:1px;
+  box-shadow:0 0 0 4px color-mix(in oklab,var(--primary) 18%,transparent);
+}
+
+/* Gold is the app's action colour; on the dark primary surfaces a dark ring
+   would disappear, so lift it to the light primary-ink token there. */
+.dark :where(a,button,input,select,textarea,[tabindex]):focus-visible{
+  outline-color:var(--primary-ink);
+}
+.dark :where(input,select,textarea):focus-visible{
+  box-shadow:0 0 0 4px color-mix(in oklab,var(--primary-ink) 22%,transparent);
+}
 
 @media (prefers-reduced-motion:reduce){*,:before,:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 

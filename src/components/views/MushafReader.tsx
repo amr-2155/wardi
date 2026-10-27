@@ -27,10 +27,11 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { useLocale } from "@/lib/locale";
 import type { QuranData } from "@/hooks/useQuran";
 import type { WardData } from "@/hooks/useWardData";
-import { pageAyahs, pageInfo, toArabicIndic } from "@/lib/quran/mushaf";
+import { pageAyahs, pageDwellFactor, pageInfo, toArabicIndic } from "@/lib/quran/mushaf";
 import {
   loadMushafTheme,
   saveMushafTheme,
@@ -66,6 +67,7 @@ import {
   type MushafFitId,
 } from "@/lib/quran/readerTheme";
 import { GLYPH_BOXES } from "@/lib/quran/glyphBoxes";
+import { setImmersive } from "@/lib/immersive";
 
 /* Page scans are 1024×1656 px with transparent margins baked in. We measure the
    actual glyph bounding box per page once (cached) and crop the empty margins so
@@ -229,8 +231,13 @@ function fitGlyph(
   mode: MushafFitId,
   box: GlyphBox | null,
 ): { w: number; h: number; placeLeft: number; placeTop: number; imgW: number; imgH: number } {
-  const cw = box ? box.r - box.l : PAGE_W;
-  const ch = box ? box.b - box.t : PAGE_H;
+  /* "page" measures the printed page itself, not the glyph block, so the sheet
+     — including its frame and margins — is shown whole and never cropped. */
+  const whole = mode === "page" || !box;
+  const cw = whole ? PAGE_W : box.r - box.l;
+  const ch = whole ? PAGE_H : box.b - box.t;
+  const offX = whole ? 0 : box.l;
+  const offY = whole ? 0 : box.t;
   const ratio = cw / ch;
   const aw = area.w;
   const ah = area.h;
@@ -260,8 +267,8 @@ function fitGlyph(
   return {
     w: bw,
     h: bh,
-    placeLeft: (bw - cw * s) / 2 - (box ? box.l : 0) * s,
-    placeTop: (bh - ch * s) / 2 - (box ? box.t : 0) * s,
+    placeLeft: (bw - cw * s) / 2 - offX * s,
+    placeTop: (bh - ch * s) / 2 - offY * s,
     imgW: Math.floor(PAGE_W * s),
     imgH: Math.floor(PAGE_H * s),
   };
@@ -275,8 +282,9 @@ const ADVANCE_MS = 520;
 const MAX_ZOOM = 3.5;
 const ZERO = { scale: 1, tx: 0, ty: 0 };
 const PILL_SHOW_MS = 1500;
-/* Reader chrome auto-hides after 3s of no interaction. */
-const CHROME_HIDE_MS = 3500;
+/* The tools are overlays, so the reader starts with the page alone; once a tap
+   reveals them they fade out again after five idle seconds. */
+const CHROME_HIDE_MS = 5000;
 /* Movement at or below this distance counts as a tap, not a scroll. */
 const TAP_SLOP_PX = 12;
 
@@ -458,7 +466,8 @@ export function MushafReaderView({
   /* Follow-along: page auto-tracks the recited ayah while audio plays. */
   const [followAudio, setFollowAudio] = useState(true);
   const pendingPlayRef = useRef(false);
-  /* Immersive-first: chrome starts hidden, a single tap reveals it. */
+  /* Immersive-first: the tools start hidden and a tap on the page toggles
+     them; five idle seconds put them away again. */
   const [chrome, setChrome] = useState(false);
   const chromeTimer = useRef<number | null>(null);
   const [doneFlash, setDoneFlash] = useState(false);
@@ -630,6 +639,38 @@ autoScrollEnabled: prev?.autoScrollEnabled ?? false,
   );
   const [autoPaused, setAutoPaused] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
+
+  /* ---- Reader dialog accessibility ----
+     Ten bottom sheets are rendered in this component. Each one declared
+     itself to nobody: no dialog role, no accessible name, no Escape key, and
+     focus was free to wander out into the page behind while a sheet was open.
+
+     The role goes on each sheet's backdrop rather than its panel. The backdrop
+     wraps the panel and nothing else, so trapping focus within it is exactly
+     trapping focus within the sheet — and putting it there means only the
+     opening tags change, with no closing-tag surgery in a 3,600-line file.
+     Contract implemented by useDialogA11y (same as the shared Sheet). */
+  const infoSheetRef = useRef<HTMLDivElement>(null);
+  const wardSheetRef = useRef<HTMLDivElement>(null);
+  const moreSheetRef = useRef<HTMLDivElement>(null);
+  const themeSheetRef = useRef<HTMLDivElement>(null);
+  const searchSheetRef = useRef<HTMLDivElement>(null);
+  const jumpSheetRef = useRef<HTMLDivElement>(null);
+  const indexSheetRef = useRef<HTMLDivElement>(null);
+  const marksSheetRef = useRef<HTMLDivElement>(null);
+  const speedSheetRef = useRef<HTMLDivElement>(null);
+  const setupSheetRef = useRef<HTMLDivElement>(null);
+
+  useDialogA11y(infoOpen, () => setInfoOpen(false), infoSheetRef);
+  useDialogA11y(wardOpen, () => setWardOpen(false), wardSheetRef);
+  useDialogA11y(moreOpen, () => setMoreOpen(false), moreSheetRef);
+  useDialogA11y(themeOpen, () => setThemeOpen(false), themeSheetRef);
+  useDialogA11y(searchOpen, () => setSearchOpen(false), searchSheetRef);
+  useDialogA11y(jumpOpen, () => setJumpOpen(false), jumpSheetRef);
+  useDialogA11y(indexOpen, () => setIndexOpen(false), indexSheetRef);
+  useDialogA11y(bookmarksOpen, () => setBookmarksOpen(false), marksSheetRef);
+  useDialogA11y(speedOpen, () => setSpeedOpen(false), speedSheetRef);
+  useDialogA11y(setupOpen, () => setSetupOpen(false), setupSheetRef);
 
   // When switching modes, save current session to its storage and load the
   // other mode's session. Reset page state so the initial-page effect can
@@ -815,7 +856,6 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     setView(next);
   }, [area, applyViewRaw]);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- initial page restore */
   useEffect(() => {
     if (page !== null) return;
     if (!data.loaded) return;
@@ -874,7 +914,6 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     }
     resetZoom(false);
   }, [page, resetZoom]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* Keep the auto-scroll timer's page snapshot in sync. */
   useEffect(() => {
@@ -1103,11 +1142,22 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     [range.start, range.end, rangeTotal, resetZoom, showPill, isQuranMode, glyphCache],
   );
 
-  /* Auto-scroll engine: ticks once per interval, turning one page forward at a
-     time. Reaching the last page stops (the progress effect celebrates). */
+  /* Auto-scroll engine: turns one page forward at a time. Reaching the last
+     page stops (the progress effect celebrates).
+
+     The interval is derived from the page that is on screen, so a sparse page
+     is not held for as long as a dense one. It is rebuilt whenever the page
+     changes, which also means the dwell for the next page is computed just
+     before it is shown. */
   useEffect(() => {
-    if (!autoScrollOn || autoPaused || isQuranMode || celebration || !pageRef.current || isDone) return;
-    const intervalMs = AUTO_SCROLL_BASE_MS / Math.max(0.25, scrollSpeed);
+    if (!autoScrollOn || autoPaused || isQuranMode || celebration || page === null || isDone) return;
+    /* Falls back to the flat base when the dataset or page metadata is not
+       loaded, which is exactly the previous behaviour. */
+    const factor =
+      quran.dataset && quran.meta && page !== null
+        ? pageDwellFactor(quran.dataset, quran.meta, page)
+        : 1;
+    const intervalMs = (AUTO_SCROLL_BASE_MS / Math.max(0.25, scrollSpeed)) * factor;
     const iv = window.setInterval(() => {
       const cur = pageRef.current;
       if (cur === null) return;
@@ -1129,6 +1179,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     isDone,
     scrollSpeed,
     range.end,
+    page,
+    quran.dataset,
+    quran.meta,
     goTo,
   ]);
 
@@ -1170,7 +1223,60 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     else setViewState({ scale: 2.2, tx: 0, ty: 0 }, true);
   }, [resetZoom, setViewState]);
 
-  /* ── Immersive chrome: single tap toggles, auto-hides after 3s idle. ── */
+  /* ── Immersive reading ────────────────────────────────────────────────
+        The Android status and navigation bars are hidden by the native
+        SystemBars plugin while this reader is mounted and given back when it
+        closes, so the rest of Wardi keeps its status bar. Android is allowed
+        to reveal the bars transiently when the user swipes from an edge (the
+        behaviour set in MainActivity); we never fight that gesture — we only
+        re-assert the reader state when the app comes back to the foreground. */
+  useEffect(() => {
+    setImmersive(true);
+    const reassert = () => {
+      if (!document.hidden) setImmersive(true);
+    };
+    document.addEventListener("visibilitychange", reassert);
+    return () => {
+      document.removeEventListener("visibilitychange", reassert);
+      setImmersive(false);
+    };
+  }, []);
+
+  /* ── Bar heights as a reserved band ───────────────────────────────────
+        The bars are overlays (they never take layout space and never move the
+        page when they appear), but the page is still sized and centred inside
+        the band they occupy, so a shown bar can never sit on top of a line of
+        the Quran. The band is measured, not hardcoded: the footer grows when a
+        recitation transport appears, and the header follows the safe area. */
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const footerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const apply = () => {
+      shell.style.setProperty(
+        "--mushaf-bar-top-h",
+        `${headerRef.current?.offsetHeight ?? 0}px`,
+      );
+      shell.style.setProperty(
+        "--mushaf-bar-bot-h",
+        `${footerRef.current?.offsetHeight ?? 0}px`,
+      );
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    if (headerRef.current) ro.observe(headerRef.current);
+    if (footerRef.current) ro.observe(footerRef.current);
+    return () => ro.disconnect();
+  }, [celebration]);
+
+  /* ── Transient chrome ─────────────────────────────────────────────────
+        Header and footer are overlays over the page: hidden on open, revealed
+        by a tap on the page, and hidden again by a second tap, by the tap on
+        the page while they show, or by the five-second idle timer. Because
+        they are overlays they never re-flow the page, so the reading position
+        never moves. */
   const clearChromeTimer = useCallback(() => {
     if (chromeTimer.current !== null) {
       window.clearTimeout(chromeTimer.current);
@@ -1187,10 +1293,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     }, CHROME_HIDE_MS);
   }, [clearChromeTimer]);
 
-  const chromeRef = useRef(chrome);
-  useEffect(() => {
-    chromeRef.current = chrome;
-  }, [chrome]);
+  const hideChrome = useCallback(() => {
+    clearChromeTimer();
+    setChrome(false);
+  }, [clearChromeTimer]);
 
   /* Re-arm the auto-hide without forcing chrome visible (toolbar taps). */
   const pokeChrome = useCallback(() => {
@@ -1200,6 +1306,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       setChrome(false);
     }, CHROME_HIDE_MS);
   }, [clearChromeTimer]);
+
+  /* Leaving the reader must not leave a timer behind. */
+  useEffect(() => clearChromeTimer, [clearChromeTimer]);
 
   /* No auto-hide while any sheet/menu is open. Opening a sheet also pauses the
      auto-scroll so pages don't turn underneath the overlay. */
@@ -1227,15 +1336,14 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
   }, [anySheetOpen, chrome, clearChromeTimer, pokeChrome]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* Single tap toggles the reader chrome. Double tap stays reserved for zoom. */
+  /* A tap on the page toggles the tools: hidden → shown, shown → hidden.
+     Double tap stays reserved for zoom, page turns stay on swipes, and taps on
+     the tools themselves never reach this handler (they are a separate
+     overlay layer, not children of the page surface). */
   const onSingleTap = useCallback(() => {
-    if (chromeRef.current) {
-      clearChromeTimer();
-      setChrome(false);
-    } else {
-      showChrome();
-    }
-  }, [clearChromeTimer, showChrome]);
+    if (chrome) hideChrome();
+    else showChrome();
+  }, [chrome, hideChrome, showChrome]);
 
   const onDoubleTap = useCallback(() => {
     toggleZoom();
@@ -1888,157 +1996,184 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
 
   return (
     <div
-      className="mushaf-reader flex min-h-screen w-full flex-col text-ink"
+      ref={shellRef}
+      className="mushaf-reader fixed inset-x-0 top-0 flex h-[var(--mushaf-h)] w-full flex-col overflow-hidden overscroll-contain text-ink"
       dir={locale === "ar" ? "rtl" : "ltr"}
       data-mushaf-theme={mushafTheme}
-      // minHeight:100dvh where supported, 100vh fallback for old WebViews
-      // (dvh unsupported there collapsed the reader to half size).
-      style={{ minHeight: "100dvh", transition: "background 0.28s ease" }}
+      /* The shell owns the whole viewport: the page area fills all of it and
+         the tools float above it, so revealing or hiding them can never
+         re-flow the page or move the reading spot. `100dvh` (with a `100vh`
+         fallback in CSS) keeps the layout correct when Android's system bars
+         come and go. */
+      style={{ transition: "background 0.28s ease" }}
     >
-      {/* IMMERSIVE HEADER — overlay only, revealed on tap (no layout shift) */}
-      <div
-        onPointerDown={pokeChrome}
-        className={`pointer-events-none fixed inset-x-0 top-0 z-30 transition-all duration-200 ease-out motion-reduce:transition-none ${
-          chrome ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"
-        }`}
-        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+      {/* ── READER HEADER (overlay) ──────────────────────────────────────
+          Floats over the page and only exists while the tools are shown: a tap
+          on the page (or five idle seconds) takes it away again. It is not in
+          the layout flow, so the page never shrinks behind it. */}
+      <header
+        ref={headerRef}
+        className={`mushaf-bar mushaf-bar-top mushaf-bar-overlay absolute inset-x-0 top-0 z-30`}
+        style={{ paddingTop: "max(0.5rem, var(--mushaf-safe-top))" }}
       >
-        <div className="px-3">
-          <div
-            className={`mushaf-chrome-bar flex w-full items-center gap-1 rounded-3xl px-2 py-1.5 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.7)] ${
-              chrome ? "pointer-events-auto" : "pointer-events-none"
-            }`}
+        {/* TOOLS ROW — fades away with the rest of the chrome, but keeps its
+            height so showing or hiding it never shifts the page. */}
+        <div
+          aria-hidden={!chrome}
+          inert={!chrome}
+          className={`flex items-center gap-1.5 px-3 pb-1 transition-[opacity,transform] duration-200 ease-out ${
+            chrome
+              ? "pointer-events-auto translate-y-0 opacity-100"
+              : "pointer-events-none -translate-y-2 opacity-0"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label={t("ui.back")}
+            className="mushaf-bar-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
           >
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label={t("ui.back")}
-              className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition active:scale-95"
-              style={{ color: "var(--mbar-ink)" }}
-            >
-              <ArrowLeft size={18} className="rtl:rotate-180" />
-            </button>
+            <ArrowLeft size={18} className="rtl:rotate-180" />
+          </button>
 
-            {/* Center: surah name + page/juz/hizb/quarter */}
-            <button
-              type="button"
-              onClick={openInfo}
-              aria-label={t(isQuranMode ? "mushaf.quranPageInfo" : "mushaf.info")}
-              className="min-w-0 flex-1 rounded-2xl px-1 text-center transition active:scale-[0.99]"
-            >
+          <span className="flex-1" />
+
+          <button
+            type="button"
+            onClick={() =>
+              page !== null &&
+              (session.bookmark === page ? removeBookmark(page) : saveBookmark())
+            }
+            aria-label={t("mushaf.bookmark")}
+            data-active={session.bookmark === page}
+            className="mushaf-bar-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+          >
+            <Bookmark
+              key={String(session.bookmark === page)}
+              size={18}
+              className="animate-scale-in"
+              fill={session.bookmark === page ? "currentColor" : "none"}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setThemeOpen(true);
+            }}
+            aria-label={t("mushaf.appearance")}
+            title={t("mushaf.appearance")}
+            className="mushaf-bar-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+          >
+            <Palette size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setSearchOpen(true);
+            }}
+            aria-label={t("mushaf.searchTitle")}
+            className="mushaf-bar-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+          >
+            <Search size={18} />
+          </button>
+        </div>
+
+        {/* FIXED POSITION CARD — always on screen while reading: surah name,
+            juz, hizb and a small live progress ring on one line, with the
+            page number beneath. Tapping opens the full page-info sheet. */}
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={openInfo}
+            aria-label={t(isQuranMode ? "mushaf.quranPageInfo" : "mushaf.info")}
+            className="mushaf-pos-card relative flex w-full flex-col items-center overflow-hidden rounded-2xl px-3 py-1.5 text-center transition active:scale-[0.995]"
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-1/2"
+              style={{
+                background:
+                  "radial-gradient(120% 150% at 50% -30%, color-mix(in oklab, var(--mgold) 18%, transparent), transparent 70%)",
+              }}
+            />
+            <span className="relative flex w-full min-w-0 items-center justify-center gap-2">
               <span
-                className="block truncate font-quran text-base leading-tight"
+                className="max-w-[46%] truncate font-quran text-[15px] font-bold leading-tight"
                 style={{ color: "var(--mgold-strong)" }}
               >
                 {info?.surah ?? t(isQuranMode ? "mushaf.quranMode" : "mushaf.title")}
               </span>
+              {info && (
+                <>
+                  <span
+                    aria-hidden
+                    className="h-3.5 w-px shrink-0"
+                    style={{ background: "color-mix(in oklab, var(--mgold) 34%, transparent)" }}
+                  />
+                  <span
+                    className="min-w-0 truncate text-[11px] font-bold leading-none"
+                    style={{ color: "var(--mmuted)" }}
+                  >
+                    {t("mushaf.posShort", {
+                      j: toArabicIndic(info.juz),
+                      h: toArabicIndic(info.hizb),
+                    })}
+                  </span>
+                </>
+              )}
+              <span className="flex shrink-0 items-center gap-1" aria-hidden>
+                <ProgressRing
+                  percent={donePct}
+                  size={24}
+                  stroke={3}
+                  track="color-mix(in oklab, var(--mgold-strong) 30%, transparent)"
+                />
+                <span
+                  className="text-[9.5px] font-black leading-none tabular-nums"
+                  style={{ color: "var(--mgold-strong)" }}
+                >
+                  {toArabicIndic(Math.round(donePct))}
+                  {t("mushaf.percent")}
+                </span>
+              </span>
+            </span>
+            <span className="relative mt-1 flex items-center justify-center">
               <span
-                className="mt-0.5 block truncate text-[10px] font-bold"
-                style={{ color: "var(--mbar-muted)" }}
+                className="inline-flex items-center rounded-full px-2.5 py-[1.5px] text-[11px] font-black leading-tight tabular-nums"
+                style={{
+                  color: "var(--mgold-strong)",
+                  background: "color-mix(in oklab, var(--mgold-strong) 12%, transparent)",
+                  boxShadow:
+                    "inset 0 0 0 1px color-mix(in oklab, var(--mgold-strong) 24%, transparent)",
+                }}
               >
                 {page !== null && info
-                  ? `${t("mushaf.pageNumber", { page: toArabicIndic(info.page) })} • ${t(
-                      "mushaf.posLine",
-                      {
-                        j: toArabicIndic(info.juz),
-                        h: toArabicIndic(info.hizb),
-                        q: toArabicIndic(info.quarter),
-                      },
-                    )}`
-                  : t(isQuranMode ? "mushaf.quranMode" : "mushaf.wardOf", {
+                  ? t("mushaf.pageNumber", { page: toArabicIndic(info.page) })
+                  : t("mushaf.wardOf", {
                       from: toArabicIndic(range.start),
                       to: toArabicIndic(range.end),
                       done: toArabicIndic(isQuranMode ? quranProgress : wardReached),
                       total: toArabicIndic(rangeTotal),
                     })}
               </span>
-            </button>
-
-            {/* Minimal progress ring — tap opens page info / reading progress */}
-            <button
-              type="button"
-              onClick={openInfo}
-              aria-label={t("mushaf.wardProgress")}
-              className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition active:scale-95"
-            >
-              <ProgressRing
-                percent={clampValue(isQuranMode ? quranPct : donePct, 0, 100)}
-                size={30}
-                stroke={3}
-                track="rgba(255,255,255,0.16)"
-                bar={"var(--mgold)"}
-                label={() => (
-                  <span
-                    className="text-[8px] font-black tabular-nums"
-                    style={{ color: "var(--mbar-ink)" }}
-                  >
-                    {toArabicIndic(Math.round(isQuranMode ? quranPct : donePct))}%
-                  </span>
-                )}
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                page !== null &&
-                (session.bookmark === page ? removeBookmark(page) : saveBookmark())
-              }
-              aria-label={t("mushaf.bookmark")}
-              className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition active:scale-95"
-              style={{ color: session.bookmark === page ? "var(--mgold)" : "var(--mbar-ink)" }}
-            >
-              <Bookmark
-                key={String(session.bookmark === page)}
-                size={18}
-                className="animate-scale-in"
-                fill={session.bookmark === page ? "currentColor" : "none"}
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setThemeOpen(true);
-              }}
-              aria-label={t("mushaf.appearance")}
-              title={t("mushaf.appearance")}
-              className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition active:scale-95"
-              style={{ color: "var(--mbar-ink)" }}
-            >
-              <Palette size={18} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchOpen(true);
-              }}
-              aria-label={t("mushaf.searchTitle")}
-              className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition active:scale-95"
-              style={{ color: "var(--mbar-ink)" }}
-            >
-              <Search size={18} />
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* PAGE AREA fills the screen; chrome is overlay-only (no layout shift) */}
-      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        {/* Ultra-thin progress line, visible only with the chrome. */}
-        {chrome && !loading && page !== null && !isDone && !celebration && (
-          <div className="absolute inset-x-0 top-0 z-10 h-[2px]" dir="ltr" aria-hidden>
-            <div
-              className="h-full"
-              style={{
-                width: `${isQuranMode ? quranPct : donePct}%`,
-                background: GOLD,
-              }}
-            />
-          </div>
-        )}
+      {/* PAGE AREA — the whole screen: the paper is centred in all of it and
+          the tools float on top, so the reading position never depends on
+          whether they are showing. */}
+      <main
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain"
+        style={{
+          paddingTop: "var(--mushaf-bar-top-h, 0px)",
+          paddingBottom: "var(--mushaf-bar-bot-h, 0px)",
+        }}
+      >
         {loading ? (
           <div className="mushaf-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
             <div
@@ -2249,8 +2384,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
           </div>
         )}
 
-        {/* transient page pill */}
-        {pill && !celebration && (
+        {/* transient page pill — only while the tools are away, otherwise the
+            footer already shows the page and the progress */}
+        {pill && !chrome && !celebration && (
           <div className="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center">
             <span
               key={pill.key}
@@ -2261,7 +2397,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
             >
               {t("mushaf.pageNumber", { page: toArabicIndic(pill.page) })}
               <span className="mx-1.5 opacity-45">•</span>
-              {toArabicIndic(pill.done)}/{toArabicIndic(pill.total)}
+              <span className="num-ltr whitespace-nowrap">
+                {toArabicIndic(pill.done)}/{toArabicIndic(pill.total)}
+              </span>
             </span>
           </div>
         )}
@@ -2276,85 +2414,8 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
           </div>
         )}
 
-        {/* auto-scroll + guided-reading floating controls — pinned to the very
-            bottom edge so nothing covers the mushaf text. Ward mode only. */}
-        {!isQuranMode && !celebration && !isDone && !chrome && page !== null && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-1.5 z-20 flex items-end justify-center gap-1.5 px-3">
-            {autoScrollOn && autoPaused && (
-              <button
-                type="button"
-                onClick={() => {
-                  pokeChrome();
-                  toggleAuto();
-                }}
-                aria-label={t("mushaf.autoResume")}
-                className="mushaf-chrome-bar pointer-events-auto flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-black transition active:scale-95"
-                style={{ color: "var(--mgold-strong)" }}
-              >
-                <Play size={12} className="rtl:rotate-180" fill="currentColor" />
-                {t("mushaf.autoResume")}
-              </button>
-            )}
-            {autoScrollOn && (
-              <button
-                type="button"
-                onClick={() => {
-                  pokeChrome();
-                  setSpeedOpen(true);
-                }}
-                aria-label={t("mushaf.autoScrollSpeed")}
-                className="mushaf-chrome-bar pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95"
-                style={{ color: "var(--mbar-ink)" }}
-              >
-                <SlidersHorizontal size={15} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                pokeChrome();
-                toggleAuto();
-              }}
-              aria-label={
-                autoScrollOn && !autoPaused ? t("mushaf.autoPause") : t("mushaf.autoPlay")
-              }
-              className={`mushaf-chrome-bar pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95 ${
-                autoScrollOn && !autoPaused ? "animate-pulse" : ""
-              }`}
-              style={{ color: autoScrollOn ? "var(--mgold)" : "var(--mbar-ink)" }}
-            >
-              {autoScrollOn && !autoPaused ? (
-                <Pause size={15} fill="currentColor" />
-              ) : (
-                <Play size={15} className="rtl:rotate-180" fill="currentColor" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                pokeChrome();
-                flowUp();
-              }}
-              aria-label={t("mushaf.flowUp")}
-              className="mushaf-chrome-bar pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95"
-              style={{ color: "var(--mbar-ink)" }}
-            >
-              <ChevronUp size={17} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                pokeChrome();
-                flowDown();
-              }}
-              aria-label={t("mushaf.flowDown")}
-              className="mushaf-chrome-bar pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95"
-              style={{ color: "var(--mgold)" }}
-            >
-              <ChevronDown size={17} />
-            </button>
-          </div>
-        )}
+        {/* auto-scroll + guided-reading controls live in the footer now, so
+            nothing floats over the mushaf text while reading. */}
 
         {/* page recitation state lives in the audio engine + tap-revealed
             toolbar only — nothing floats over the mushaf text while reading. */}
@@ -2431,9 +2492,11 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
           </div>
         )}
 
-        {/* completion screen */}
+        {/* completion screen — covers the whole reader, bars included, so the
+            moment of finishing reads as one screen and not a card floating
+            between two toolbars. */}
         {celebration && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[#0c1f17]/92 p-4 backdrop-blur-[2px]">
+          <div className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-[#0c1f17]/92 p-4 backdrop-blur-[2px]">
             <div className="animate-scale-in-soft w-full max-w-sm rounded-3xl border border-gold/40 bg-surface p-6 text-center shadow-2xl">
               <div className="mx-auto flex flex-col items-center">
                 <ProgressRing
@@ -2518,199 +2581,311 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         )}
       </main>
 
-      {/* COMPACT READER TOOLBAR — overlay only, revealed on tap */}
+      {/* ── READER FOOTER (overlay) ──────────────────────────────────────
+          Also an overlay: the page keeps the full height and the tools fade
+          over it, so hiding them never reflows the mushaf and the last lines
+          of a page are never squeezed or moved. */}
       {!celebration && (
-        <div
-          onPointerDown={pokeChrome}
-          className={`pointer-events-none fixed inset-x-0 bottom-0 z-30 transition-all duration-200 ease-out motion-reduce:transition-none ${
-            chrome ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        <footer
+          ref={footerRef}
+          aria-hidden={!chrome}
+          inert={!chrome}
+          className={`mushaf-bar mushaf-bar-bottom mushaf-bar-overlay absolute inset-x-0 bottom-0 z-30 transition-[opacity,transform] duration-200 ease-out ${
+            chrome
+              ? "pointer-events-auto translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-3 opacity-0"
           }`}
-          style={{ paddingBottom: "max(0.6rem, env(safe-area-inset-bottom))" }}
+          style={{ paddingBottom: "max(0.5rem, var(--mushaf-safe-bottom))" }}
         >
-          <div className="w-full px-3">
-            {/* RECITATION TRANSPORT — tap-revealed chrome only, shown while a
-                recitation is loaded. Minimal: prev / play-pause / next / stop
-                + position + follow. Nothing persists over the mushaf text. */}
-            {audio.currentTrack && !isDone && (
-              <div
-                className={`mushaf-chrome-bar mb-1.5 flex h-12 items-center gap-1 rounded-full px-2 ${
-                  chrome ? "pointer-events-auto" : "pointer-events-none"
-                }`}
+          {/* RECITATION TRANSPORT — only while a recitation is loaded. It
+              lives in the footer now instead of floating over the page, so it
+              can never cover a line of the Quran. */}
+          {audio.currentTrack && !isDone && (
+            <div className="mx-3 mt-2 flex h-11 items-center gap-1 rounded-2xl border border-[color-mix(in_oklab,var(--mgold)_26%,transparent)] px-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  skipVerse(-1);
+                }}
+                aria-label={t("mushaf.prevAyah")}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
               >
+                <ChevronLeft size={16} className="rtl:rotate-180" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  if (audio.player.isPlaying) audio.actions.pause();
+                  else audio.actions.play();
+                }}
+                aria-label={t(audio.player.isPlaying ? "mushaf.listenPause" : "mushaf.listenPlay")}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "var(--mgold)", color: "#2b2312" }}
+              >
+                {audio.player.isPlaying ? (
+                  <Pause size={15} />
+                ) : (
+                  <Play size={15} className="rtl:-scale-x-100" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  skipVerse(1);
+                }}
+                aria-label={t("mushaf.nextAyah")}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <ChevronRight size={16} className="rtl:rotate-180" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  audio.actions.stop();
+                }}
+                aria-label={t("mushaf.stopRecite")}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <Square size={13} />
+              </button>
+              <span
+                className="min-w-0 flex-1 truncate px-1 text-center text-[11px] font-black tabular-nums"
+                style={{ color: "var(--mgold-strong)" }}
+              >
+                {audio.currentSurah && audio.currentTrack?.ayah !== undefined
+                  ? t("mushaf.listenNow", {
+                      name: audio.currentSurah.name,
+                      ayah: toArabicIndic(audio.currentTrack.ayah),
+                    })
+                  : t("mushaf.listenLoading")}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  if (followAudio) setFollowAudio(false);
+                  else followReciting();
+                }}
+                aria-label={t("mushaf.followAudio")}
+                title={t("mushaf.followAudio")}
+                data-active={followAudio}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <LocateFixed size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* GUIDED READING — the auto-scroll and page-flow controls. They
+              live in the footer (never over the page) and the row keeps a
+              fixed height, so pausing the auto-scroll does not resize the
+              page area and make the mushaf jump. */}
+          {!isQuranMode && !isDone && page !== null && (
+            <div className="flex h-11 items-center justify-center gap-1.5 px-3 pt-1.5">
+              {autoScrollOn && autoPaused && (
                 <button
                   type="button"
                   onClick={() => {
                     pokeChrome();
-                    skipVerse(-1);
+                    toggleAuto();
                   }}
-                  aria-label={t("mushaf.prevAyah")}
-                  className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                  style={{ color: "var(--mbar-ink)" }}
+                  aria-label={t("mushaf.autoResume")}
+                  className="mushaf-bar-btn flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-black"
                 >
-                  <ChevronLeft size={17} className="rtl:rotate-180" />
+                  <Play size={12} className="rtl:rotate-180" fill="currentColor" />
+                  {t("mushaf.autoResume")}
                 </button>
+              )}
+              {autoScrollOn && (
                 <button
                   type="button"
                   onClick={() => {
                     pokeChrome();
-                    if (audio.player.isPlaying) audio.actions.pause();
-                    else audio.actions.play();
+                    setSpeedOpen(true);
                   }}
-                  aria-label={t(audio.player.isPlaying ? "mushaf.listenPause" : "mushaf.listenPlay")}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95"
+                  aria-label={t("mushaf.autoScrollSpeed")}
+                  className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                >
+                  <SlidersHorizontal size={15} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  toggleAuto();
+                }}
+                aria-label={
+                  autoScrollOn && !autoPaused ? t("mushaf.autoPause") : t("mushaf.autoPlay")
+                }
+                data-active={autoScrollOn && !autoPaused}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                {autoScrollOn && !autoPaused ? (
+                  <Pause size={15} fill="currentColor" />
+                ) : (
+                  <Play size={15} className="rtl:rotate-180" fill="currentColor" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  flowUp();
+                }}
+                aria-label={t("mushaf.flowUp")}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <ChevronUp size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pokeChrome();
+                  flowDown();
+                }}
+                aria-label={t("mushaf.flowDown")}
+                className="mushaf-bar-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <ChevronDown size={17} />
+              </button>
+            </div>
+          )}
+
+          {/* PROGRESS + WARD RANGE — the reading progress of the current
+              mode, and the way into the ward sheet that explains it. */}
+          <div className="flex items-center gap-2.5 px-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setWardOpen(true)}
+              aria-label={t("mushaf.wardA11y")}
+              className="mushaf-bar-btn shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black"
+            >
+              {isQuranMode
+                ? t("mushaf.quranMode")
+                : t("mushaf.wardOf", {
+                    from: toArabicIndic(range.start),
+                    to: toArabicIndic(range.end),
+                  })}
+            </button>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(donePct)}
+              aria-label={t(isQuranMode ? "mushaf.quranProgress" : "mushaf.wardProgress")}
+              className="mushaf-bar-track h-1.5 min-w-0 flex-1 overflow-hidden rounded-full"
+            >
+              <div
+                className="mushaf-bar-fill h-full rounded-full transition-[width] duration-500 ease-out"
+                style={{ width: `${donePct}%` }}
+              />
+            </div>
+            <span
+              className="num-ltr shrink-0 whitespace-nowrap text-[12px] font-black tabular-nums"
+              style={{ color: "var(--mmuted)" }}
+            >
+              {toArabicIndic(Math.round(donePct))}%
+            </span>
+          </div>
+
+          {/* TRANSPORT — finish the page, walk the pages, listen, more tools.
+              The page number in the middle opens the jump sheet. */}
+          <div className="flex items-center gap-1 px-3 pb-1 pt-2">
+            {isDone ? (
+              <div
+                className="flex flex-1 items-center justify-center gap-2 py-1 text-xs font-black"
+                style={{ color: "var(--mgold-strong)" }}
+              >
+                <BookOpen size={15} />
+                {t("mushaf.doneToday")}
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={finishPage}
+                  disabled={doneFlash}
+                  aria-label={t(doneFlash ? "mushaf.pageDone" : "mushaf.finishPage")}
+                  className="mushaf-bar-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:opacity-70"
                   style={{ background: "var(--mgold)", color: "#2b2312" }}
                 >
-                  {audio.player.isPlaying ? (
-                    <Pause size={16} />
-                  ) : (
-                    <Play size={16} className="rtl:-scale-x-100" />
-                  )}
+                  <Check size={19} strokeWidth={3.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={goPrevP}
+                  aria-label={t("mushaf.prev")}
+                  className="mushaf-bar-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:opacity-30"
+                  disabled={!canPrev}
+                >
+                  <ChevronLeft size={19} className="rtl:rotate-180" />
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    pokeChrome();
-                    skipVerse(1);
+                    setJumpValue(String(page ?? range.start));
+                    setJumpOpen(true);
                   }}
-                  aria-label={t("mushaf.nextAyah")}
-                  className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                  style={{ color: "var(--mbar-ink)" }}
+                  aria-label={t(isQuranMode ? "mushaf.quranJumpTitle" : "mushaf.jumpTitle")}
+                  className="min-w-0 flex-1 rounded-2xl py-1 text-center transition active:scale-[0.98]"
                 >
-                  <ChevronRight size={17} className="rtl:rotate-180" />
+                  <span
+                    className="num-ltr block text-base font-black leading-none tabular-nums"
+                    style={{ color: "var(--mink)" }}
+                  >
+                    {toArabicIndic(page ?? range.start)}
+                  </span>
+                  <span
+                    className="num-ltr mt-1 block text-[9px] font-bold leading-none tabular-nums"
+                    style={{ color: "var(--mmuted)" }}
+                  >
+                    / {toArabicIndic(quran.meta?.pages ?? 604)}
+                  </span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    pokeChrome();
-                    audio.actions.stop();
-                  }}
-                  aria-label={t("mushaf.stopRecite")}
-                  className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                  style={{ color: "var(--mbar-ink)" }}
+                  onClick={goNextP}
+                  aria-label={t("mushaf.next")}
+                  className="mushaf-bar-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl disabled:opacity-30"
+                  disabled={!canNext}
                 >
-                  <Square size={14} />
+                  <ChevronRight size={19} className="rtl:rotate-180" />
                 </button>
-                <span
-                  className="min-w-0 flex-1 truncate px-1 text-center text-[11px] font-black tabular-nums"
-                  style={{ color: "var(--mgold-strong)" }}
-                >
-                  {audio.currentSurah && audio.currentTrack?.ayah !== undefined
-                    ? t("mushaf.listenNow", {
-                        name: audio.currentSurah.name,
-                        ayah: toArabicIndic(audio.currentTrack.ayah),
-                      })
-                    : t("mushaf.listenLoading")}
-                </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    pokeChrome();
-                    if (followAudio) setFollowAudio(false);
-                    else followReciting();
-                  }}
-                  aria-label={t("mushaf.followAudio")}
-                  title={t("mushaf.followAudio")}
-                  className="mushaf-chrome-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                  style={
-                    followAudio
-                      ? { background: "var(--mgold)", color: "#2b2312" }
-                      : { color: "var(--mbar-ink)" }
-                  }
+                  onClick={() => void handleListen()}
+                  aria-label={t("mushaf.listen")}
+                  data-active={!!audio.currentTrack}
+                  className="mushaf-bar-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
                 >
-                  <LocateFixed size={15} />
+                  {audio.player.isPlaying ? <Pause size={18} /> : <Headphones size={18} />}
                 </button>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen(true)}
+                  aria-label={t("mushaf.moreTools")}
+                  className="mushaf-bar-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                >
+                  <MoreHorizontal size={19} />
+                </button>
+              </>
             )}
-            <div
-              className={`mushaf-chrome-bar flex h-14 items-center gap-1 rounded-full px-2 ${
-                chrome ? "pointer-events-auto" : "pointer-events-none"
-              }`}
-              style={{ boxShadow: "0 18px 44px -18px rgba(0,0,0,0.7)" }}
-            >
-              {isDone ? (
-                <div
-                  className="flex flex-1 items-center justify-center gap-2 text-xs font-black"
-                  style={{ color: "var(--mgold-strong)" }}
-                >
-                  <BookOpen size={15} />
-                  {t("mushaf.doneToday")}
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={finishPage}
-                    disabled={doneFlash}
-                    aria-label={t(doneFlash ? "mushaf.pageDone" : "mushaf.finishPage")}
-                    className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-70"
-                    style={{ background: "var(--mgold)", color: "#2b2312" }}
-                  >
-                    <Check size={19} strokeWidth={3.5} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goPrevP}
-                    aria-label={t("mushaf.prev")}
-                    className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30"
-                    style={{ color: "var(--mbar-ink)" }}
-                    disabled={!canPrev}
-                  >
-                    <ChevronLeft size={19} className="rtl:rotate-180" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setJumpValue(String(page ?? range.start));
-                      setJumpOpen(true);
-                    }}
-                    aria-label={t(isQuranMode ? "mushaf.quranJumpTitle" : "mushaf.jumpTitle")}
-                    className="min-w-0 flex-1 rounded-full py-2 text-center text-xs font-black tabular-nums transition active:scale-[0.98]"
-                    style={{ color: "var(--mbar-ink)" }}
-                  >
-                    {toArabicIndic(page ?? range.start)} / {toArabicIndic(quran.meta?.pages ?? 604)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goNextP}
-                    aria-label={t("mushaf.next")}
-                    className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30"
-                    style={{ color: "var(--mbar-ink)" }}
-                    disabled={!canNext}
-                  >
-                    <ChevronRight size={19} className="rtl:rotate-180" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleListen()}
-                    aria-label={t("mushaf.listen")}
-                    className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                    style={
-                      audio.currentTrack
-                        ? { background: "var(--mgold)", color: "#2b2312" }
-                        : { color: "var(--mbar-ink)" }
-                    }
-                  >
-                    {audio.player.isPlaying ? <Pause size={18} /> : <Headphones size={18} />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMoreOpen(true)}
-                    aria-label={t("mushaf.moreTools")}
-                    className="mushaf-chrome-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-                    style={{ color: "var(--mbar-ink)" }}
-                  >
-                    <MoreHorizontal size={19} />
-                  </button>
-                </>
-              )}
-            </div>
           </div>
-        </div>
+        </footer>
       )}
 
       {/* PAGE INFO SHEET */}
       {infoOpen && page !== null && info && (
         <div
+          ref={infoSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.pageInfoA11y")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setInfoOpen(false)}
         >
@@ -2831,6 +3006,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* WARD INFO SHEET / QURAN MODE INFO SHEET */}
       {wardOpen && wardStartInfo && (
         <div
+          ref={wardSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.wardA11y")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setWardOpen(false)}
         >
@@ -2946,6 +3125,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* MORE TOOLS SHEET */}
       {moreOpen && (
         <div
+          ref={moreSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.moreTools")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setMoreOpen(false)}
         >
@@ -3060,6 +3243,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* APPEARANCE / THEME SHEET */}
       {themeOpen && (
         <div
+          ref={themeSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.appearance")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setThemeOpen(false)}
         >
@@ -3143,7 +3330,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
             {/* reading fit modes — how the page fills the screen */}
             <p className="mt-6 text-sm font-black">{t("mushaf.fitMode")}</p>
             <p className="mb-3 mt-0.5 text-xs font-bold text-muted">{t("mushaf.fitModeHint")}</p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-1.5">
               {MUSHAF_FITS.map((id) => {
                 const activeFit = fitMode === id;
                 return (
@@ -3152,7 +3339,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                     type="button"
                     onClick={() => switchFit(id)}
                     aria-pressed={activeFit}
-                    className={`flex items-center justify-center rounded-2xl border px-1 py-2.5 text-xs font-black transition active:scale-[0.97] ${
+                    className={`flex items-center justify-center rounded-2xl border px-0.5 py-2.5 text-[11px] font-black leading-tight transition active:scale-[0.97] ${
                       activeFit
                         ? "border-gold bg-gold text-primary-deep shadow-sm"
                         : "border-line bg-surface text-muted"
@@ -3170,6 +3357,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* SEARCH SHEET */}
       {searchOpen && (
         <div
+          ref={searchSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.searchTitle")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setSearchOpen(false)}
         >
@@ -3244,6 +3435,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* JUMP TO PAGE SHEET */}
       {jumpOpen && (
         <div
+          ref={jumpSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.jumpA11y")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setJumpOpen(false)}
         >
@@ -3290,6 +3485,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* MUSHAF INDEX SHEET (surahs + juz) */}
       {indexOpen && quran.dataset && quran.meta && (
         <div
+          ref={indexSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.indexTitle")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setIndexOpen(false)}
         >
@@ -3369,7 +3568,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                             {r.name}
                           </span>
                           <span className="block truncate text-[11px] font-bold text-muted">
-                            {r.transliteration} · {toArabicIndic(r.count)}{" "}
+                            {r.transliteration} ÷ {toArabicIndic(r.count)}{" "}
                             {t("quran.ayahMany")}
                           </span>
                         </span>
@@ -3420,6 +3619,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* BOOKMARKS SHEET */}
       {bookmarksOpen && (
         <div
+          ref={marksSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.bookmarksTitle")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setBookmarksOpen(false)}
         >
@@ -3499,6 +3702,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* AUTO-SCROLL SPEED SHEET */}
       {speedOpen && (
         <div
+          ref={speedSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.speedTitle")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setSpeedOpen(false)}
         >
@@ -3570,6 +3777,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       {/* WARD SETUP SHEET — custom page range for today's ward */}
       {setupOpen && (
         <div
+          ref={setupSheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("mushaf.wardSetupTitle")}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[2px]"
           onClick={() => setSetupOpen(false)}
         >
@@ -3607,7 +3818,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                   className="mt-1.5 h-12 w-full rounded-2xl bg-surface-soft px-4 text-center text-sm font-black text-ink focus:ring-2 focus:ring-gold focus:outline-none"
                 />
               </label>
-              <span className="-mt-4 text-sm font-black text-muted">←</span>
+              <span className="-mt-4 text-sm font-black text-muted">→</span>
               <label className="flex-1" dir={locale === "ar" ? "rtl" : "ltr"}>
                 <span className="block text-xs font-black text-muted">{t("mushaf.wardTo")}</span>
                 <input

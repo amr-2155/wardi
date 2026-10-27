@@ -32,6 +32,8 @@ export type DhikrItem = {
   count?: number;
   times?: DhikrTime;
   note?: string;
+  /** Display title for standalone surah cards (mushaf-style header). */
+  title?: string;
 };
 
 export const DHIKR_CATEGORIES: DhikrCategory[] = [
@@ -72,15 +74,40 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "النبي ﷺ: «من قالها حين يصبح أُجير من الجن حتى يمسي، ومن قالها حين يمسي أُجير من الجن حتى يصبح» (رواه النسائي وحسنه الألباني).",
   },
   {
-    id: "day-surahs",
+    id: "day-ikhlas",
     category: "morning",
     times: "both",
     type: "quran",
-    text: `${SURAH_IKHLAS}\n${SURAH_FALAQ}\n${SURAH_NAS}`,
-    source: "القرآن الكريم — الإخلاص (112) والمعوذتان (113، 114)",
+    title: "سورة الإخلاص",
+    text: SURAH_IKHLAS,
+    source: "القرآن الكريم — سورة الإخلاص (112)",
     authenticity: "sahih",
     count: 3,
-    note: "كان النبي ﷺ يقرأهن ثلاث مرات؛ يكفينه من كل شيء (رواه أبو داود والترمذي وصححه الألباني).",
+    note: "تُقرأ ثلاثًا مع المعوذتين؛ تكفي من كل شيء (رواه أبو داود والترمذي وصححه الألباني).",
+  },
+  {
+    id: "day-falaq",
+    category: "morning",
+    times: "both",
+    type: "quran",
+    title: "سورة الفلق",
+    text: SURAH_FALAQ,
+    source: "القرآن الكريم — سورة الفلق (113)",
+    authenticity: "sahih",
+    count: 3,
+    note: "تُقرأ ثلاثًا مع أختيها صباحًا ومساءً.",
+  },
+  {
+    id: "day-nas",
+    category: "morning",
+    times: "both",
+    type: "quran",
+    title: "سورة الناس",
+    text: SURAH_NAS,
+    source: "القرآن الكريم — سورة الناس (114)",
+    authenticity: "sahih",
+    count: 3,
+    note: "تُقرأ ثلاثًا مع أختيها صباحًا ومساءً.",
   },
   {
     id: "day-asbahna",
@@ -266,13 +293,16 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "ثلاث مرات؛ من قالها حين يصبح وحين يمسي كان حقًا على الله أن يرضيه.",
   },
   {
+    /* Duplicate of `day-innaka-hayyu` that used to sit further down this list
+       with the same wording. One entry survives, at the stronger of the two
+       gradings, and it keeps the note the weaker copy carried. */
     id: "day-ya-hayyu",
     category: "morning",
     times: "both",
     type: "hadith",
     text: "يَا حَيُّ يَا قَيُّومُ بِرَحْمَتِكَ أَسْتَغِيثُ، أَصْلِحْ لِي شَأْنِي كُلَّهُ، وَلَا تَكِلْنِي إِلَى نَفْسِي طَرْفَةَ عَيْنٍ.",
-    source: "رواه الحاكم — حسنه الألباني",
-    authenticity: "hasan",
+    source: "رواه الحاكم وصححه الألباني",
+    authenticity: "sahih",
     note: "وصية النبي ﷺ لفاطمة رضي الله عنها أن تقولها حين تصبح وحين تمسي.",
   },
   {
@@ -325,6 +355,10 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "كان ﷺ يستغفر في اليوم مئة مرة.",
   },
   {
+    /* Duplicate of `day-sallim-ala-muhammad`, which graded the same words as
+       sahih on the strength of a virtue narration (رواه مسلم) rather than a
+       isnad for this wording. Kept here at the grade its own wording carries —
+       الطبراني, حسنه الألباني — so the card never claims more than the source. */
     id: "day-salli-10",
     category: "morning",
     times: "both",
@@ -333,7 +367,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     source: "رواه الطبراني — حسنه الألباني",
     authenticity: "hasan",
     count: 10,
-    note: "عشر مرات حين يصبح وعشرًا حين يمسي؛ تُرجى بها الشفاعة.",
+    note: "عشر مرات حين يصبح وعشرًا حين يمسي؛ من صلى عليّ مرة صلى الله عليه بها عشرًا (رواه مسلم).",
   },
 
   /* ── Sleep ── */
@@ -355,11 +389,34 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "من قرأها عند النوم لم يزل عليه من الله حافظ ولا يقربه شيطان حتى يصبح (رواه البخاري).",
   },
   {
-    id: "sleep-muawwidhat",
+    id: "sleep-ikhlas",
     category: "sleep",
     type: "quran",
-    text: `${SURAH_IKHLAS}\n${SURAH_FALAQ}\n${SURAH_NAS}`,
-    source: "القرآن الكريم — الإخلاص (112) والمعوذتان (113، 114)",
+    title: "سورة الإخلاص",
+    text: SURAH_IKHLAS,
+    source: "القرآن الكريم — سورة الإخلاص (112)",
+    authenticity: "muttafaq",
+    count: 3,
+    note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
+  },
+  {
+    id: "sleep-falaq",
+    category: "sleep",
+    type: "quran",
+    title: "سورة الفلق",
+    text: SURAH_FALAQ,
+    source: "القرآن الكريم — سورة الفلق (113)",
+    authenticity: "muttafaq",
+    count: 3,
+    note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
+  },
+  {
+    id: "sleep-nas",
+    category: "sleep",
+    type: "quran",
+    title: "سورة الناس",
+    text: SURAH_NAS,
+    source: "القرآن الكريم — سورة الناس (114)",
     authenticity: "muttafaq",
     count: 3,
     note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
@@ -420,46 +477,13 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "دبر كل صلاة؛ وهي الذكر المفضل عند الله قولًا بعد الصلاة.",
   },
 
-  {
-    id: "day-fitrat-islam",
-    category: "morning",
-    times: "morning",
-    type: "hadith",
-    text: "أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ ﷺ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ.",
-    source: "رواه أحمد — حسنه الألباني",
-    authenticity: "hasan",
-  },
-  {
-    id: "day-amsayna-fitrat",
-    category: "evening",
-    times: "evening",
-    type: "hadith",
-    text: "أَمْسَيْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ ﷺ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ.",
-    source: "رواه أحمد — حسنه الألباني",
-    authenticity: "hasan",
-  },
-  {
-    id: "day-raditu-billah",
-    category: "morning",
-    times: "morning",
-    type: "hadith",
-    text: "رَضِيتُ بِاللَّهِ رَبًّا، وَبِالْإِسْلَامِ دِينًا، وَبِمُحَمَّدٍ ﷺ نَبِيًّا.",
-    source: "رواه الترمذي — صححه الألباني",
-    authenticity: "sahih",
-    count: 3,
-    note: "من قالها حين يصبح وجب حقًا على الله أن يرضيه يوم القيامة.",
-  },
-  {
-    id: "day-raditu-amsa",
-    category: "evening",
-    times: "evening",
-    type: "hadith",
-    text: "رَضِيتُ بِاللَّهِ رَبًّا، وَبِالْإِسْلَامِ دِينًا، وَبِمُحَمَّدٍ ﷺ نَبِيًّا.",
-    source: "رواه الترمذي — صححه الألباني",
-    authenticity: "sahih",
-    count: 3,
-    note: "من قالها حين يمسي وجب حقًا على الله أن يرضيه يوم القيامة.",
-  },
+  /* The two entries below used to be joined by four near-identical copies of
+     dhikr already listed above (firotah asbahna/amsayna, raditu, ya hayyu,
+     salli 'ala Muhammad, astaghfiru, raditu again) — every one of them
+     appearing twice in the same list, with two grades fighting over the same
+     wording. The copies are gone; each dhikr is listed once, at the stronger of
+     its two gradings. scripts/test-adhkar.mjs now fails if a category can ever
+     show the same text twice again. */
   {
     id: "day-huda-tuqa-afaf",
     category: "morning",
@@ -470,15 +494,6 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     authenticity: "sahih",
   },
   {
-    id: "day-innaka-hayyu",
-    category: "morning",
-    times: "morning",
-    type: "hadith",
-    text: "يَا حَيُّ يَا قَيُّومُ بِرَحْمَتِكَ أَسْتَغِيثُ، أَصْلِحْ لِي شَأْنِي كُلَّهُ، وَلَا تَكِلْنِي إِلَى نَفْسِي طَرْفَةَ عَيْنٍ.",
-    source: "رواه الحاكم وصححه الألباني",
-    authenticity: "sahih",
-  },
-  {
     id: "day-innaka-asafat",
     category: "evening",
     times: "both",
@@ -486,28 +501,6 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     text: "اللَّهُمَّ إِنَّا نَسْأَلُكَ الْجَنَّةَ وَنَعُوذُ بِكَ مِنَ النَّارِ.",
     source: "رواه أبو داود — صححه الألباني",
     authenticity: "sahih",
-  },
-  {
-    id: "day-sallim-ala-muhammad",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ ﷺ.",
-    source: "قال ﷺ: من صلى عليّ مرة صلى الله عليه بها عشرًا (رواه مسلم)",
-    authenticity: "sahih",
-    count: 10,
-    note: "عشر مرات صباحًا ومساءً؛ ترفع عشر درجات وتكفى همّها.",
-  },
-  {
-    id: "day-istighfar-100",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ.",
-    source: "كان النبي ﷺ يستغفر في المجلس مئة مرة (رواه مسلم)",
-    authenticity: "sahih",
-    count: 100,
-    note: "من قالها مئة مرة في الصباح والمساء لم ينتقض ورده اليومي.",
   },
 
   /* ── Entering & Leaving Home ── */
@@ -642,17 +635,6 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     authenticity: "hasan",
     count: 100,
     note: "من قالها مائة مرة غفر الله له ولو كانت ذنوبه مثل زبد البحر.",
-  },
-  {
-    id: "day-riditu",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "رَضِيتُ بِاللَّهِ رَبًّا، وَبِالْإِسْلَامِ دِينًا، وَبِمُحَمَّدٍ نَبِيًّا.",
-    source: "رواه أبو داود والترمذي — صححه الألباني",
-    authenticity: "sahih",
-    count: 3,
-    note: "من قالها حين يصبح وحين يمسي كان حقًّا على الله أن يرضيه.",
   },
 ];
 
