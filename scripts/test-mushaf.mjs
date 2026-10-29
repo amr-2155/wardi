@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -46,7 +46,11 @@ const {
 
 let passed = 0;
 const total = [];
-const check = (name, fn) => total.push({ name, fn });
+/* Page artwork is 51 MB and gitignored (scripts/download-pages.mjs fetches it).
+   Checks that read it carry a gate so a clean checkout reports them as skipped
+   instead of failing, and never counts them as passes. */
+const check = (name, fn, gate) => total.push({ name, fn, gate });
+const havePageImages = () => existsSync(join(ROOT, "public", "quran", "pages", "1.webp"));
 
 // -- Arabic-Indic digits
 check("toArabicIndic converts numbers", () => {
@@ -186,7 +190,7 @@ check("page images: all 604 pages present as WebP", () => {
     const { size } = statSync(join(ROOT, "public", "quran", "pages", `${pg}.webp`));
     assert.ok(size > 2048, `page ${pg} missing (size=${size})`);
   }
-});
+}, havePageImages);
 
 check("page images: valid WebP header", () => {
   const first = readFileSync(join(ROOT, "public", "quran", "pages", "1.webp"));
@@ -195,7 +199,7 @@ check("page images: valid WebP header", () => {
       first.subarray(8, 12).toString("ascii") === "WEBP",
     "page 1 is not a WebP"
   );
-});
+}, havePageImages);
 
 // -- line splitting
 check("lines per page <= MUSHAF_LINES and text unchanged", () => {
@@ -246,7 +250,13 @@ check("short pages split to fewer, not broken", () => {
 
 // run
 let failures = 0;
-for (const { name, fn } of total) {
+let skipped = 0;
+for (const { name, fn, gate } of total) {
+  if (gate && !gate()) {
+    skipped += 1;
+    console.log(`  ~ ${name} (skipped: page images not downloaded)`);
+    continue;
+  }
   try {
     fn();
     passed += 1;
@@ -258,5 +268,8 @@ for (const { name, fn } of total) {
   }
 }
 
-console.log(`\nmushaf: ${passed}/${total.length} checks passed`);
+console.log(
+  `\nmushaf: ${passed}/${total.length - skipped} checks passed` +
+    (skipped ? `, ${skipped} skipped (page images not downloaded)` : ""),
+);
 process.exit(failures === 0 ? 0 : 1);

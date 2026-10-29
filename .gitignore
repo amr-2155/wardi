@@ -59,10 +59,10 @@ next-env.d.ts
 
 # Large generated binary assets (reproducible via scripts/)
 #   scripts/download-pages.mjs      -> public/quran/pages/*.webp
-#   scripts/build-ayah-meta.mjs     -> public/quran/ayah-meta.json
 #   scripts/generate-icons.ps1      -> app icons
+# ayah-meta.json is generated too, but it is small (65 KB), required at runtime
+# and asserted by the harnesses, so it is tracked rather than gitignored.
 /public/quran/pages/
-/public/quran/ayah-meta.json
 /public/audio/*.mp3
 /android/app/src/main/res/raw/*.mp3
 /public/wardi-icon-1024.png
