@@ -8,7 +8,7 @@ and English, web and Android from one codebase.
 ```bash
 npm run dev        # dev server
 npm run build      # production build
-npm run typecheck  # tsc --noEmit
+npm run typecheck  # generate route types, then tsc --noEmit
 npm run lint       # eslint
 npm test           # all verification harnesses
 npm run audit      # fails on high/critical issues in production deps
