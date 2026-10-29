@@ -11,7 +11,20 @@ npm run build      # production build
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm test           # all verification harnesses
+npm run audit      # fails on high/critical issues in production deps
 ```
+
+`npm run audit` deliberately ignores dev-only tooling: ESLint, the Tailwind
+PostCSS plugins and the Capacitor CLI are build-time only and never ship in the
+APK. The three remaining moderate advisories in `@capacitor/cli`'s `xcode`/
+`uuid` chain are in that build-only set, so the gate stays meaningful instead of
+going permanently red.
+
+The stack is pinned to Next.js 16.4.3 and Capacitor 8.5.3 — the releases that
+clear the 16.x RCE advisories and the Capacitor proxy advisory
+(`GHSA-rvm3-566m-v7fv`, remote content reachable at the app origin inside the
+WebView). The static export made the image-optimizer advisories unreachable,
+but the WebView one shipped in the APK.
 
 `npm test` runs fifteen harnesses that compile and import the real source modules
 with the project compiler, so a passing run means the shipped code behaves:

@@ -506,6 +506,35 @@ async function setViewport(cdp, width, height) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Chrome profile cleanup                                               */
+/* ------------------------------------------------------------------ */
+
+/* Windows keeps handles on the profile directory for a moment after the
+   Chrome tree is killed, so a single rmSync can throw EPERM/EBUSY. That is
+   expected teardown noise and must never change the verdict of a run that has
+   already written its report. Retry a few times, then give up quietly. */
+async function removeProfileDir(dir) {
+  const resolved = path.resolve(dir);
+  const tmpRoot = path.resolve(os.tmpdir()) + path.sep;
+  // Safety: only ever delete a directory this run created under the OS temp dir.
+  if (!resolved.startsWith(tmpRoot)) return;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      return;
+    } catch (err) {
+      if (attempt === 9) {
+        log(
+          `note: leaving the throwaway Chrome profile behind (${err.code || err.message}): ${resolved}`,
+        );
+        return;
+      }
+      await sleep(250);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Main                                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -976,12 +1005,12 @@ async function main() {
         chrome.proc.kill("SIGKILL");
       }
     }
-    await sleep(200);
-    // Safety: only ever delete a directory this run created under the OS temp dir.
-    const resolvedProfile = path.resolve(chrome.profileDir);
-    if (resolvedProfile.startsWith(path.resolve(os.tmpdir()) + path.sep) && fs.existsSync(resolvedProfile)) {
-      fs.rmSync(resolvedProfile, { recursive: true, force: true });
-    }
+    // Release our ends of Chrome's pipes: a live pipe would keep the event
+    // loop alive and make the process linger until the watchdog fires.
+    chrome.proc.stdout?.destroy();
+    chrome.proc.stderr?.destroy();
+    await sleep(400);
+    await removeProfileDir(chrome.profileDir);
     if (staticServer) await staticServer.close();
 
     /* --- summary ---------------------------------------------------- */
@@ -1013,4 +1042,8 @@ setTimeout(() => {
 main().catch((err) => {
   log(`FATAL: ${err.stack || err.message}`);
   process.exitCode = 2;
+  /* A failure can leave Chrome pipes or sockets open; do not sit there until
+     the watchdog fires. The log write above is synchronous, so a short delay
+     is enough to flush it. */
+  setTimeout(() => process.exit(2), 100).unref();
 });

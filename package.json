@@ -8,16 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node scripts/test-ward.mjs && node scripts/test-quran.mjs && node scripts/test-offline.mjs && node scripts/test-audio.mjs && node scripts/test-mushaf.mjs && node scripts/test-w1.mjs && node scripts/test-w2.mjs && node scripts/test-tadabbur.mjs && node scripts/test-adhkar.mjs && node scripts/test-dataset-failure.mjs && node scripts/test-dataset-reload.mjs && node scripts/test-dataset-timeout.mjs && node scripts/test-dialog-a11y.mjs && node scripts/test-ayah-menu.mjs && node scripts/test-immersive.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "audit": "node scripts/check-audit.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.0",
-    "@capacitor/cli": "^8.5.0",
-    "@capacitor/core": "^8.5.0",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "@capacitor/local-notifications": "^8.3.1",
     "adhan": "^4.4.6",
     "lucide-react": "^1.31.0",
-    "next": "16.3.0",
+    "next": "16.4.3",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -27,7 +28,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
