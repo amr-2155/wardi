@@ -16,9 +16,10 @@ npm run audit      # fails on high/critical issues in production deps
 
 `npm run audit` deliberately ignores dev-only tooling: ESLint, the Tailwind
 PostCSS plugins and the Capacitor CLI are build-time only and never ship in the
-APK. The three remaining moderate advisories in `@capacitor/cli`'s `xcode`/
-`uuid` chain are in that build-only set, so the gate stays meaningful instead of
-going permanently red.
+APK. The tree currently reports zero advisories. The `overrides` entry pins the
+`uuid` version that Capacitor's iOS-only `xcode` helper pulls in — this project
+ships Android, so that path never runs, but its stale pin still surfaced in
+audits.
 
 The stack is pinned to Next.js 16.4.3 and Capacitor 8.5.3 — the releases that
 clear the 16.x RCE advisories and the Capacitor proxy advisory

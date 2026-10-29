@@ -1,0 +1,47 @@
+# Verification gate for every push and pull request.
+#
+# It runs the same commands a developer runs locally, in the same order, so a
+# green run here means the same thing it means on a laptop. The Android APK is
+# deliberately not built here: that needs the SDK, a JDK and a Gradle cache, and
+# it is verified locally before release instead.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `ci` rather than `install`: this fails loudly if package-lock.json has
+      # drifted from package.json, which is exactly the bug this repo hit before.
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verification harnesses
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Dependency gate
+        run: npm run audit
