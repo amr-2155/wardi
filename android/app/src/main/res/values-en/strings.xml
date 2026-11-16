@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wardi</string>
+    <string name="title_activity_main">Wardi</string>
+    <string name="package_name">com.wardi.app</string>
+    <string name="custom_url_scheme">com.wardi.app</string>
+
+    <!-- Home-screen widgets: names shown in the launcher widget picker -->
+    <string name="wardi_widget_strip_name">Prayer Times</string>
+    <string name="wardi_widget_strip_desc">The five prayers today and their times</string>
+    <string name="wardi_widget_next_name">Next Prayer</string>
+    <string name="wardi_widget_next_desc">The next prayer, time remaining, and the rest of today\'s prayers</string>
+    <string name="wardi_widget_overview_name">Prayer Times Overview</string>
+    <string name="wardi_widget_overview_desc">Hijri and Gregorian dates, location, all prayer times with the next one highlighted</string>
+
+    <string name="wardi_widget_next_title">Next Prayer</string>
+    <string name="wardi_widget_next_label">Remaining</string>
+    <string name="wardi_widget_view_all">View all prayer times</string>
+    <string name="wardi_widget_open">Open Wardi to update the times</string>
+    <string name="wardi_widget_open_short">Open Wardi</string>
+</resources>

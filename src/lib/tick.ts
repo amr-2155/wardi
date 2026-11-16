@@ -1,12 +1,14 @@
 /**
- * The dhikr completion chime, synthesized with the Web Audio API — no audio
- * assets, no dependencies, works fully offline.
+ * Dhikr feedback tones, synthesized with the Web Audio API — no audio assets,
+ * no dependencies, works fully offline.
  *
- * One two-tone chime, played only when the last repetition of a counted dhikr
- * lands. There is no per-tap tick: a hundred repetitions would play a hundred
- * clicks over a few seconds, which drowns out the one sound that actually
- * means something. Everything is best-effort — no AudioContext (SSR, old
- * WebViews) or a throw anywhere means silence, never a broken tap.
+ * There are two sounds on purpose:
+ * - `playDhikrTap` is the soft tick for every repetition, quiet enough that a
+ *   hundred of them read as counting rather than noise;
+ * - `playDhikrFinal` is the distinct resolution for the LAST repetition of a
+ *   dhikr, and `playDhikrComplete` the warmer chime for the end of a session.
+ * Everything is best-effort — no AudioContext (SSR, old WebViews) or a throw
+ * anywhere means silence, never a broken tap.
  */
 
 let ctx: AudioContext | null = null;
@@ -17,10 +19,13 @@ function audio(): AudioContext | null {
     const AC = window.AudioContext;
     if (typeof AC !== "function") return null;
     if (!ctx) ctx = new AC();
-    // iOS/Safari suspend the context until a user gesture resumes it; a tap
-    // handler IS a gesture, so resume here every time, cheaply.
+    /* iOS/Safari (and the Android WebView) create the context suspended and
+       only resume it on a gesture. Resuming is asynchronous, so returning null
+       here would swallow the FIRST tap — the one the user is testing the button
+       with. Resume and hand the context back; the blips scheduled while it is
+       still suspended play as soon as it starts. */
     if (ctx.state === "suspended") void ctx.resume();
-    return ctx.state === "running" ? ctx : null;
+    return ctx;
   } catch {
     return null;
   }

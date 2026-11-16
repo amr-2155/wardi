@@ -115,12 +115,39 @@ const W2_FILES = W2_VIEWS.map((rel) => {
    seconds hide them again; the native system bars are hidden for this screen
    only (see src/lib/immersive.ts), while their height is still measured and
    reserved so a shown bar can never cover a line of the Quran. The page is
-   byte-identical before/after a toggle. */
+   byte-identical before/after a toggle.
+
+   Re-pinned 2026-11-05: the reader moved to the black sheet design — the fixed
+   header is now one slim position line (surah, juz, hizb; the tools replace it
+   while shown, never changing the 44px band) instead of the full-position
+   card, and the printed page number moved to a plain number at the foot of
+   the page (the footer keeps it while the chrome is up). Layout, fit, theme
+   and reader behaviour unchanged; covered by test-immersive.mjs.
+
+   Re-pinned 2026-11-05 (design pass): MushafReader switched to the black
+   sheet — the loading placeholder now uses the paper-ink token instead of the
+   old brown wash, keeping the loading state on the same black surface. The
+   hash above is the post-design-read state.
+
+   Re-pinned 2026-11-09 (ward lifecycle): progress and completion now derive
+   from an explicit `recordedPages` set in the session instead of the page the
+   reader happens to be on. Opening, saving, or landing on the last page no
+   longer completes a ward; only confirming every page in the range does. The
+   reader also counts against the planned range and resets the set when the
+   range changes. Behaviour is covered by scripts/test-ward.mjs. */
 const FROZEN_HASHES = {
   "src/lib/quran/search.ts": "F3884270DDC7F6FF",
   "src/lib/wardReminder.ts": "58F592421CED19A1",
-  "src/lib/reminderTime.ts": "C27FEA591329EBBB",
-  "src/lib/userData.ts": "1CEB3D4A5A73BFFE",
+  /* Re-pinned 2026-10-31: added `minutesBefore()` so the "N minutes before
+     the prayer" offset has one tested definition instead of an inline
+     multiplication in two files. Pure addition; no existing behaviour changed
+     (regression-checked in scripts/test-reminders.mjs). */
+  "src/lib/reminderTime.ts": "D10F9BE219242CC5",
+  /* Re-pinned 2026-11-16: registered `ward:v2:adhkar-reciter:v1`, the reciter
+     choice introduced with adhkar playback. It was the only persisted key the
+     new feature added outside the registry, so delete-all and backup would
+     have missed it. Pure registry addition; behaviour is covered by test-w1. */
+  "src/lib/userData.ts": "8e10fa8f7024f396",
   "src/lib/backup.ts": "51176E5275E19A49",
   "src/hooks/useAudio.ts": "D2C19EFBDD8CBDBE",
   /* Re-pinned 2026-10-26: hardcoded Arabic percent sign ("٪") and the
@@ -128,7 +155,11 @@ const FROZEN_HASHES = {
      t("adhkar.separator"), removing the unsanctioned Arabic literals that
      tripped W2 C4 and C6. The reader's immersive behaviour is unchanged
      and covered by test-mushaf.mjs. */
-  "src/components/views/MushafReader.tsx": "AB8C91D842EA98B6",
+  /* Re-pinned 2026-11-09: the foot-of-page number moved into the empty safe
+     band below the sheet (so it can never overlap a verse), and a small
+     progress pointer joined the footer. UI-only; the reading and counting
+     lifecycle is unchanged and covered by scripts/test-ward.mjs. */
+  "src/components/views/MushafReader.tsx": "0b9df3cbfdaa4336",
 };
 
 /* Frozen logic modules. These own data, scheduling and audio, none of which

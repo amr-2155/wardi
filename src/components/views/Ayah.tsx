@@ -3,10 +3,12 @@
 import { ArrowRight, BookMarked, ShieldCheck, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { AyahActionBar, AyahMetaFooter, RelatedItem, SurahBadge, VerseText } from "@/components/quran";
+import { TafsirPanel } from "@/components/TafsirPanel";
 import { TafsirSections } from "@/components/TafsirSections";
 import { ScreenHeader } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { useLocale, type Locale } from "@/lib/locale";
+import { buildTafsirModel } from "@/lib/tafsir";
 import type { QuranData } from "@/hooks/useQuran";
 import { getGlobalId, parseAyahRef, sha256Text } from "@/lib/quran/validate";
 import { DATASET_META } from "@/lib/quran/store";
@@ -34,6 +36,8 @@ export function AyahView({
   const related = quran.getRelated(ayahId);
   const topics = quran.getTopics(ayahId);
   const tafsir = quran.getTafsir(ayahId);
+  /* Reviewed rich entry first, legacy curated entry as the fallback. */
+  const tafsirModel = buildTafsirModel(ayahId, quran.dataset);
   const bookmarked = quran.isBookmarked(ayahId);
 
   /* "Verse not found" would blame the reference, but a failed dataset load makes
@@ -175,7 +179,15 @@ export function AyahView({
       </button>
 
       {/* TAFSIR */}
-      {tafsir && (
+      {tafsirModel.status !== "unavailable" ? (
+        <section className="mt-6">
+          <div className="mb-3 flex items-center gap-1.5">
+            <Sparkles size={14} className="text-gold-strong" />
+            <h3 className="text-sm font-black">{t("ayah.tafsirTitle")}</h3>
+          </div>
+          <TafsirPanel model={tafsirModel} />
+        </section>
+      ) : tafsir ? (
         <section className="mt-6">
           <div className="mb-3 flex items-center gap-1.5">
             <Sparkles size={14} className="text-gold-strong" />
@@ -183,7 +195,7 @@ export function AyahView({
           </div>
           <TafsirSections tafsir={tafsir} />
         </section>
-      )}
+      ) : null}
 
       {/* RELATED */}
       {related && related.relatedAyahs.length > 0 && (

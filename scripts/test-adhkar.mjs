@@ -28,7 +28,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -55,6 +55,9 @@ execFileSync(
     join(ROOT, "node_modules", "typescript", "bin", "tsc"),
     join(ROOT, "src", "data", "adhkar.ts"),
     join(ROOT, "src", "lib", "arabicSearch.ts"),
+    join(ROOT, "src", "lib", "mushafText.ts"),
+    join(ROOT, "src", "lib", "swipeNav.ts"),
+    join(ROOT, "src", "lib", "audio", "hisnmuslim.ts"),
     "--outDir", OUT,
     "--module", "commonjs", "--moduleResolution", "node",
     "--target", "es2019", "--esModuleInterop", "--skipLibCheck", "--types", "node",
@@ -64,6 +67,9 @@ execFileSync(
 
 const adhkar = await import(pathToFileURL(join(OUT, "data", "adhkar.js")).href);
 const arabicSearch = await import(pathToFileURL(join(OUT, "lib", "arabicSearch.js")).href);
+const mushafText = await import(pathToFileURL(join(OUT, "lib", "mushafText.js")).href);
+const swipeNav = await import(pathToFileURL(join(OUT, "lib", "swipeNav.js")).href);
+const hisnmuslim = await import(pathToFileURL(join(OUT, "lib", "audio", "hisnmuslim.js")).href);
 
 /* ------------------------------------------------------------------ */
 /* Arabic-aware duplicate keys                                          */
@@ -196,14 +202,17 @@ check("A8: the data module under test is the one on disk", () => {
 /* B. Completion & tap feedback — per-tap confirmation, final resolution */
 /* ------------------------------------------------------------------ */
 
-check("B1: per-tap feedback is available for every repetition", () => {
+check("B1: the per-tap tick exists; vibration is the completion's alone", () => {
   assert.ok(/export function playDhikrTap\(/.test(TICK), "tick.ts exports playDhikrTap");
-  assert.ok(/export function dhikrTap\(/.test(HAPTICS), "haptics.ts exports dhikrTap");
   assert.ok(/export function dhikrFinal\(/.test(HAPTICS), "the completion pulse is missing");
   assert.ok(
     /export function playDhikrComplete\(/.test(TICK),
     "the completion chime is missing"
   );
+  /* The user asked for vibration on the LAST repetition. A per-tap pulse would
+     also fire 100 times on the ×100 adhkar, which is the rattle this file was
+     written to stop. */
+  assert.ok(!/export function dhikrTap\(/.test(HAPTICS), "no per-tap vibrator helper should come back");
 });
 
 check("B2: per-tap feedback is used on every tap, final only on last rep", () => {
@@ -246,17 +255,18 @@ check("B5: the feedback module owns the contract for both surfaces", () => {
   assert.match(feedback, /export function playDhikrTapFeedback\(prefs: DhikrFeedback\)/,
     "dhikrFeedback.ts no longer exposes per-tap helper");
   assert.match(feedback, /dhikrFinal\(\)/, "the helper does not fire the pulse");
-  assert.match(feedback, /dhikrTap\(\)/, "the per-tap haptic helper");
   /* Both channels independent: a user who keeps the pulse and silences the
      chime must not lose the pulse. */
   const body = feedback.slice(feedback.indexOf("export function playCompletionFeedback"));
   assert.match(body, /if \(prefs\.haptic\) dhikrFinal\(\)/);
   assert.match(body, /if \(prefs\.sound\) playDhikrFinal\(\)/);
 
-  /* Per-tap feedback for every repetition. */
+  /* Per-repetition feedback is the tick only. Resetting a count must never
+     invent a repetition, and no tap below the last may buzz. */
   const tapBody = feedback.slice(feedback.indexOf("export function playDhikrTapFeedback"));
-  assert.match(tapBody, /if \(prefs\.haptic\) dhikrTap\(\)/);
   assert.match(tapBody, /if \(prefs\.sound\) playDhikrTap\(\)/);
+  assert.ok(!/dhikrTap\(|dhikrFinal\(|vibrate/.test(tapBody),
+    "the intermediate repetitions must not vibrate");
 });
 
 check("B6: the preference toggles and their labels are still reachable", () => {
@@ -346,11 +356,11 @@ check("C5: the list filter really uses the Arabic matcher", () => {
     "the adhkar list is filtering again with a raw string comparison");
 });
 
-/* ---- voice: recitation + counting must work inside the Android shell ----
-   Android System WebView implements neither SpeechSynthesis nor the Web
-   Speech recognition API, so a web-only implementation silently disappears on
-   the phone. These checks pin the native bridge that makes the features real
-   there, while keeping the browser fallback. */
+/* ---- voice: the native bridge, now TTS only -------------------------------
+   Android System WebView has no SpeechSynthesis, so the spoken fallback would
+   silently disappear on the phone. These checks pin the remaining bridge, and
+   pin the removal of the microphone feature: no recognizer, no permission, no
+   dead hook left behind. */
 
 const NATIVE_BRIDGE = "src/lib/nativeDhikrVoice.ts";
 const NATIVE_PLUGIN =
@@ -358,7 +368,7 @@ const NATIVE_PLUGIN =
 const ACTIVITY = "android/app/src/main/java/com/wardi/app/MainActivity.java";
 const MANIFEST = "android/app/src/main/AndroidManifest.xml";
 const TTS = read("src/lib/dhikrTts.ts");
-const VOICE_HOOK = read("src/hooks/useVoiceDhikr.ts");
+const VOICE_HOOK = "src/hooks/useVoiceDhikr.ts";
 
 check("D1: the native bridge exists and only registers inside the app", () => {
   const bridge = read(NATIVE_BRIDGE);
@@ -369,37 +379,430 @@ check("D1: the native bridge exists and only registers inside the app", () => {
     "the web must get null, not a broken plugin");
 });
 
-check("D2: the plugin really drives Android TTS and SpeechRecognizer", () => {
+check("D2: the plugin drives Android TTS and nothing else", () => {
   const plugin = read(NATIVE_PLUGIN);
-  assert.match(plugin, /new TextToSpeech\(/, "recitation must use Android TTS");
-  assert.match(plugin, /SpeechRecognizer\.createSpeechRecognizer/,
-    "counting must use the Android recognizer");
-  assert.match(plugin, /RecognizerIntent\.EXTRA_LANGUAGE, language/,
-    "the recognizer must be told the language");
+  assert.match(plugin, /new TextToSpeech\(/, "spoken text must use Android TTS");
   assert.match(plugin, /"ar-SA"/, "Arabic is the default language");
-  assert.match(plugin, /RECORD_AUDIO/, "the microphone permission must be declared");
-  assert.match(plugin, /notifyListeners\("result"/, "recognized text must reach JS");
+  assert.match(plugin, /notifyListeners\("speakEnd"/, "the end of speech must reach JS");
+  assert.ok(!/import android\.speech\.SpeechRecognizer|SpeechRecognizer\./.test(plugin),
+    "the microphone half must be gone, not hidden");
 });
 
-check("D3: the plugin and permission are wired into the app shell", () => {
+check("D3: the plugin is wired into the app shell and the microphone is not", () => {
   assert.match(read(ACTIVITY), /registerPlugin\(DhikrVoicePlugin\.class\)/,
     "MainActivity must register the plugin before Capacitor starts");
-  assert.match(read(MANIFEST), /android\.permission\.RECORD_AUDIO/,
-    "the manifest must request the microphone");
+  const manifest = read(MANIFEST);
+  assert.ok(!manifest.includes("RECORD_AUDIO"), "the manifest still requests the microphone");
+  assert.match(manifest, /android\.permission\.VIBRATE/, "the vibration permission must stay");
 });
 
-check("D4: both features prefer the native engine and keep the web fallback", () => {
+check("D4: spoken text prefers the native engine and keeps the web fallback", () => {
   assert.match(TTS, /nativeDhikrVoice\(\)/, "TTS must check for the native engine first");
   assert.match(TTS, /speechSynthesis/, "the browser path must remain as a fallback");
-  assert.match(VOICE_HOOK, /nativeDhikrVoice\(\)/, "the counter must check for the native engine first");
-  assert.match(VOICE_HOOK, /webkitSpeechRecognition/, "the browser path must remain as a fallback");
+  assert.match(TTS, /export function speakText/, "the shared speak entry point must survive");
 });
 
-check("D5: the counter still guards against double counting", () => {
-  assert.match(VOICE_HOOK, /cooldownMs = 1200/, "a cooldown must exist");
-  assert.match(VOICE_HOOK, /if \(now - lastCountRef\.current < cooldownMs\) return;/,
-    "the cooldown must actually gate onCount");
-  assert.match(VOICE_HOOK, /if \(!isFinal\) return;/, "partial results must never count");
+check("D5: the count-by-voice feature is fully removed, hook and all", () => {
+  assert.ok(!existsSync(join(ROOT, ...VOICE_HOOK.split("/"))), "useVoiceDhikr.ts still exists");
+  for (const [name, src] of [["reciter", RECITER], ["view", VIEW]]) {
+    assert.ok(!/useVoiceDhikr|isVoiceRecognitionSupported|voiceCount/.test(src),
+      `${name} still references the removed voice counter`);
+  }
+  assert.ok(!/startListening|stopListening/.test(read(NATIVE_BRIDGE)),
+    "the bridge still exposes microphone methods");
+});
+
+/* ------------------------------------------------------------------ */
+/* E. The 2026-10 request set                                           */
+/* ------------------------------------------------------------------ */
+/* Reported from the phone in one voice note, each item a separate promise:
+   the Done button starts faded and lights up, every repetition ticks, the
+   last repetition gets a DIFFERENT tick AND a vibration, pages can be walked
+   back and forth, Quran reads like a mushaf with verse medallions, the last
+   two verses of Al-Baqarah are in the evening list, and the short repeated
+   adhkar sit back to back so they are easy to memorise. */
+
+const MUSHAF_RENDERER = "src/components/views/adhkar/VersesMushaf.tsx";
+const FEEDBACK = "src/lib/dhikrFeedback.ts";
+
+check("E1: the VIBRATE permission is declared, or the pulse is silently dropped", () => {
+  assert.match(read(MANIFEST), /android\.permission\.VIBRATE/,
+    "navigator.vibrate does nothing without android.permission.VIBRATE in the WebView");
+});
+
+check("E2: the Done button starts faded and lights on press", () => {
+  /* The lit branch must be conditional. A gold button that is always gold is
+     exactly what the screenshot showed: no feedback, so no confidence the tap
+     registered. */
+  assert.match(RECITER, /pressed\s*\?\s*"border-gold bg-gold text-primary-deep/,
+    "the lit style must be behind the `pressed` flag");
+  assert.match(RECITER, /border-gold\/25 bg-gold-soft\/60 text-gold-strong\/75/,
+    "the resting style must be the faded one");
+  assert.match(RECITER, /setPressed\(true\)/, "a press must set the lit state");
+  assert.match(RECITER, /window\.setTimeout\([\s\S]{0,120}setPressed\(false\)/,
+    "the glow must fall back to faded on its own");
+  assert.match(RECITER, /onPointerDown=\{lightUp\}/,
+    "pointer-down must light it before the click resolves");
+});
+
+check("E3: every repetition ticks; the last one gets the distinct resolution", () => {
+  assert.match(RECITER, /if \(remaining <= 1\) playCompletionFeedback\(prefs\);\s*\n\s*else playDhikrTapFeedback\(prefs\);/,
+    "the recite screen must pick exactly one sound per repetition");
+  assert.match(VIEW, /if \(next >= target\) playCompletionFeedback\(prefs\);\s*\n\s*else playDhikrTapFeedback\(prefs\);/,
+    "the card list must pick exactly one sound per repetition");
+  assert.match(TICK, /export function playDhikrTap\b/, "a distinct per-tap tick must exist");
+  assert.match(TICK, /export function playDhikrFinal\b/, "a distinct final tone must exist");
+  assert.match(TICK, /return ctx;/, "the first tap must not be swallowed while the context resumes");
+});
+
+check("E4: the final repetition vibrates (the channel that survives a look-away)", () => {
+  assert.match(read(FEEDBACK), /dhikrFinal\(\)/, "completion must trigger the vibration pattern");
+  assert.match(HAPTICS, /export function dhikrFinal\b/, "the final pulse must have one definition");
+});
+
+check("E5: a page can be walked backwards and forwards without counting", () => {
+  assert.match(RECITER, /const go = useCallback\(\s*\n\s*\(delta: 1 \| -1\)/,
+    "navigation must be a separate function from counting");
+  assert.match(RECITER, /onClick=\{\(\) => go\(-1\)\}/, "there must be a working previous button");
+  assert.match(RECITER, /onClick=\{\(\) => go\(1\)\}/, "there must be a working next button");
+  assert.match(RECITER, /onTouchStart=\{onTouchStart\}/, "swipe must be wired");
+  assert.match(RECITER, /animate-dhikr-leave-rev/, "going back must animate in the reverse direction");
+});
+
+check("E6: Quran passages render as a mushaf through one shared parser", () => {
+  const renderer = read(MUSHAF_RENDERER);
+  assert.match(renderer, /parseMushafParts/, "the renderer must use the shared, tested split");
+  assert.match(renderer, /from "@\/lib\/mushafText"/, "the split must come from the pure module");
+  assert.match(renderer, /rounded-full border border-gold\/60/, "verse numbers must be medallions, not a list");
+  assert.match(VIEW, /<VersesMushaf text=\{item\.text\} size="sm" \/>/,
+    "the card list must render Quran through the mushaf component");
+  assert.match(RECITER, /<VersesMushaf text=\{item\.text\} \/>/,
+    "the recite screen must render Quran through the mushaf component");
+});
+
+check("E7: the split really separates words from verse numbers", () => {
+  const parts = mushafText.parseMushafParts("قل هو الله أحد (1) الله الصمد (2)");
+  assert.deepEqual(
+    parts.map((p) => (p.kind === "ayah" ? p.n : p.text)),
+    ["قل هو الله أحد", 1, "الله الصمد", 2],
+    `unexpected split: ${JSON.stringify(parts)}`
+  );
+  const single = mushafText.parseMushafParts("آية بلا رقم");
+  assert.deepEqual(single, [{ kind: "words", text: "آية بلا رقم" }], "plain text must survive untouched");
+  assert.deepEqual(mushafText.parseMushafParts("   "), [], "blank text must yield no parts");
+  assert.ok(mushafText.hasAyahMarkers("(1)"), "hasAyahMarkers must see a marker");
+  assert.ok(!mushafText.hasAyahMarkers("بلا رقم"), "hasAyahMarkers must not invent one");
+});
+
+check("E8: every marked Quran passage round-trips with its numbers intact", () => {
+  const marked = adhkar.DHIKR_ITEMS.filter((i) => mushafText.hasAyahMarkers(i.text));
+  assert.ok(marked.length >= 4, `expected several marked passages, found ${marked.length}`);
+  for (const item of marked) {
+    const parts = mushafText.parseMushafParts(item.text);
+    const rebuilt = parts.map((p) => (p.kind === "words" ? p.text : `(${p.n})`)).join(" ");
+    const numbers = parts.filter((p) => p.kind === "ayah").map((p) => p.n);
+    const expected = (item.text.match(/\((\d+)\)/g) ?? []).map((m) => Number(m.slice(1, -1)));
+    assert.deepEqual(numbers, expected, `${item.id} lost or reordered a verse number`);
+    /* Compare the wording with spacing, diacritics and punctuation removed:
+       the renderer is allowed to re-flow whitespace, never to drop a word. */
+    assert.equal(bare(rebuilt), bare(item.text), `${item.id} lost wording around a marker`);
+  }
+});
+
+check("E9: the evening list carries Al-Baqarah 285-286", () => {
+  const item = adhkar.getCategoryDhikr("evening").find((i) => i.id === "evening-aman-arrasul");
+  assert.ok(item, "the evening list must contain the last two verses of Al-Baqarah");
+  assert.equal(item.type, "quran", "it is Quran, not a hadith");
+  assert.ok(bare(item.text).includes(bare("آمن الرسول")), "it must open with آمن الرسول");
+  const numbers = mushafText
+    .parseMushafParts(item.text)
+    .filter((p) => p.kind === "ayah")
+    .map((p) => p.n);
+  assert.deepEqual(numbers, [285, 286], `verse numbers must be 285 and 286, got ${numbers}`);
+  assert.ok(!adhkar.getCategoryDhikr("morning").some((i) => i.id === item.id),
+    "it is a night dhikr and must stay out of the morning list");
+});
+
+check("E10: the short repeated adhkar sit back to back for memorisation", () => {
+  for (const category of ["morning", "evening"]) {
+    const ids = adhkar.getCategoryDhikr(category).map((i) => i.id);
+    const at = (id) => ids.indexOf(id);
+    assert.ok(at("day-subhanallah100") >= 0, `${category}: missing the ×100 tasbih`);
+    assert.equal(at("day-lailaha-x10"), at("day-subhanallah100") + 1,
+      `${category}: the tahlil must follow the tasbih`);
+    assert.equal(at("day-astaghfiru-100"), at("day-lailaha-x10") + 1,
+      `${category}: the istighfar must follow the tahlil`);
+    assert.equal(at("day-awdhu-kalimat"), at("day-astaghfiru-100") + 1,
+      `${category}: the refuge dhikr must follow the istighfar`);
+    assert.equal(at("day-hasbiyallah"), at("day-awdhu-kalimat") + 1,
+      `${category}: حسبي الله must follow it`);
+    assert.equal(at("day-dua-yunus"), at("day-hasbiyallah") + 1,
+      `${category}: the dua of Yunus must come right after حسبي الله`);
+  }
+  const counts = Object.fromEntries(adhkar.DHIKR_ITEMS.map((i) => [i.id, i.count]));
+  assert.equal(counts["day-subhanallah100"], 100, "the tasbih is 100, not a rounded-down 3");
+  assert.equal(counts["day-lailaha-x10"], 10, "the tahlil keeps its own count");
+  assert.equal(counts["day-astaghfiru-100"], 100, "the istighfar is 100");
+  assert.equal(counts["day-awdhu-kalimat"], 3, "the refuge dhikr is repeated three times");
+});
+
+check("E11: the dua of Yunus reads as one marked verse", () => {
+  const item = adhkar.DHIKR_ITEMS.find((i) => i.id === "day-dua-yunus");
+  assert.ok(item, "the dua of Yunus must exist");
+  assert.ok(bare(item.text).includes(bare("لا إله إلا أنت سبحانك إني كنت من الظالمين")),
+    "the wording must be the Quranic dua");
+  assert.equal(item.type, "quran", "it is Quran 21:87");
+  assert.equal(item.count, 3, "it is repeated three times");
+  const numbers = mushafText
+    .parseMushafParts(item.text)
+    .filter((p) => p.kind === "ayah")
+    .map((p) => p.n);
+  assert.deepEqual(numbers, [87], "the medallion must read 87");
+});
+
+/* ------------------------------------------------------------------ */
+/* F. The 2026-11 request set: listening, swipe, removals               */
+/* ------------------------------------------------------------------ */
+/* The screen now has to play a real reciter for the Quran cards, say nothing
+   false about the hadith ones, remove the stars / voice counter / TTS voice
+   list, and let a horizontal swipe turn pages without eating a tap. Each
+   promise below is pinned to executable logic or to source it must contain. */
+
+const AUDIO_LIB = read("src/lib/adhkarAudio.ts");
+const AUDIO_UI = read("src/components/views/adhkar/DhikrAudio.tsx");
+const SWIPE_LIB = read("src/lib/swipeNav.ts");
+const QURAN_COM = read("src/lib/audio/quran-com.ts");
+const HISN_LIB = read("src/lib/audio/hisnmuslim.ts");
+
+/** The verses each Quran card actually quotes, in reading order. */
+const EXPECTED_AUDIO = {
+  "day-ayatal-kursi": [[2, 255]],
+  "day-ikhlas": [[112, 1], [112, 2], [112, 3], [112, 4]],
+  "day-falaq": [[113, 1], [113, 2], [113, 3], [113, 4], [113, 5]],
+  "day-nas": [[114, 1], [114, 2], [114, 3], [114, 4], [114, 5], [114, 6]],
+  "day-hasbiyallah": [[9, 129]],
+  "day-dua-yunus": [[21, 87]],
+  "evening-aman-arrasul": [[2, 285], [2, 286]],
+  "sleep-ayatal-kursi": [[2, 255]],
+  "sleep-ikhlas": [[112, 1], [112, 2], [112, 3], [112, 4]],
+  "sleep-falaq": [[113, 1], [113, 2], [113, 3], [113, 4], [113, 5]],
+  "sleep-nas": [[114, 1], [114, 2], [114, 3], [114, 4], [114, 5], [114, 6]],
+  "prayer-ayatal-kursi": [[2, 255]],
+  "general-hasbunallah": [[3, 173]],
+};
+
+check("F1: every Quran card names the exact verses it quotes, and no other card does", () => {
+  const quran = adhkar.DHIKR_ITEMS.filter((i) => i.type === "quran");
+  assert.equal(quran.length, Object.keys(EXPECTED_AUDIO).length,
+    `the expected map covers ${Object.keys(EXPECTED_AUDIO).length} Quran cards, the dataset has ${quran.length}`);
+  for (const item of quran) {
+    const expected = EXPECTED_AUDIO[item.id];
+    assert.ok(expected, `${item.id} is a Quran card with no expected audio reference`);
+    const actual = (item.audio ?? []).map((r) => [r.surah, r.ayah]);
+    assert.deepEqual(actual, expected, `${item.id} points at the wrong verses`);
+  }
+  for (const item of adhkar.DHIKR_ITEMS.filter((i) => i.type === "hadith")) {
+    assert.equal(item.audio, undefined,
+      `${item.id} is a hadith: claiming a verse reference would attach Quran reciter audio to words he did not say`);
+  }
+  /* And every audio card must be Quran — while a Hisn recording id must be the
+     hadith's: the two sources never mix. */
+  for (const item of adhkar.DHIKR_ITEMS) {
+    if (item.audio) assert.equal(item.type, "quran", `${item.id} is not Quran but carries audio refs`);
+    if (item.hisnId !== undefined) {
+      assert.equal(item.type, "hadith", `${item.id} is not a hadith but carries a Hisn recording id`);
+    }
+  }
+});
+
+check("F2: the recording is looked up per ayah, from the Quran.com provider", () => {
+  assert.match(AUDIO_LIB, /quranComProvider\.getSurahAudioQueue\(reciterId, surah\)/,
+    "the player must ask the real provider for the reciter/surah queue");
+  assert.match(AUDIO_LIB, /candidate\.ayah === ref\.ayah/,
+    "the player must pick the track of the exact ayah");
+  assert.ok(!/quran\.mp3|\.mp3["']/.test(AUDIO_LIB), "a generic or hardcoded file would not match the card");
+  assert.match(AUDIO_LIB, /queueIndex \+= 1/, "verses must play in order");
+  assert.match(QURAN_COM, /audio\.qurancdn\.com/, "the verified CDN must be the source");
+});
+
+check("F3: only reciters that exist in the provider table can be offered", () => {
+  const ids = [...QURAN_COM.matchAll(/\n\s{2}(\d+): \{ name: "([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(ids.length >= 10, `reciter table looks truncated: ${ids.length}`);
+  const offered = AUDIO_LIB.match(/ADHKAR_RECITER_IDS = \[([^\]]+)\]/);
+  assert.ok(offered, "the offered reciter list is missing");
+  const offeredIds = [...offered[1].matchAll(/"(\d+)"/g)].map((m) => m[1]);
+  assert.deepEqual(offeredIds, ["7", "3", "4", "9", "5"], "the verified five must be exactly these");
+  for (const id of offeredIds) {
+    assert.ok(ids.includes(id), `reciter ${id} is offered but missing from RECITER_MAP`);
+  }
+  assert.match(QURAN_COM, /export function getReciterInfo/, "names must come from the same table as the ids");
+  assert.match(AUDIO_UI, /adhkarReciters\(locale\)/, "the picker must render those names");
+});
+
+check("F4: every recording is a real recitation — no synthesized voice anywhere in playback", () => {
+  /* The user rejected the automatic reading outright. It must be gone, not
+     merely hidden behind a flag: no TTS import, no "synthetic" state, no
+     machine voice attributed to a sheikh. */
+  assert.ok(!/dhikrTts|speakDhikr|isTtsSupported/.test(AUDIO_LIB),
+    "the playback path must not synthesize speech");
+  assert.ok(!/synthetic/i.test(AUDIO_LIB), "the synthetic fallback must be gone, not hidden");
+  assert.ok(!LOCALE.includes("adhkar.audioSynthetic"), "the automatic-reading wording must be removed");
+  /* The hadith cards play their own Hisn al-Muslim recording. */
+  assert.match(AUDIO_LIB, /hisnAudioUrl\(/, "a hadith card must play its Hisn recording");
+  assert.match(HISN_LIB, /hisnmuslim\.com\/audio\/ar\//, "the verified host must be the source");
+  assert.match(HISN_LIB, /export function hisnAudioUrl/, "the URL must be a pure, testable builder");
+  assert.equal(hisnmuslim.hisnAudioUrl(79), "https://www.hisnmuslim.com/audio/ar/79.mp3",
+    "the builder must produce the exact file a card requests");
+  /* A card with no verified recording offers no control at all. */
+  assert.match(AUDIO_UI, /if \(!canPlayDhikr\(item\)\) return null;/,
+    "no verified recording must mean no control — not a dead button and not a machine voice");
+  assert.match(AUDIO_LIB, /export function canPlayDhikr/, "the playability rule must be one exported function");
+  assert.match(AUDIO_UI, /adhkar\.audioCreditHisn/, "the Hisn credit must be rendered beside a Hisn recording");
+});
+
+check("F5: swipe decides next/prev exactly, and never mistakes a tap or a scroll", () => {
+  const { resolveSwipeNav } = swipeNav;
+  assert.match(SWIPE_LIB, /export function resolveSwipeNav/, "the decision must be a pure, exported function");
+  const at = (dx, dy = 4, startX = 200) =>
+    resolveSwipeNav({ dx, dy, startX, viewportWidth: 400 });
+
+  assert.equal(at(-120), "next", "swiping left must go to the next page");
+  assert.equal(at(120), "prev", "swiping right must go to the previous page");
+  assert.equal(at(-47), null, "a short drag is not a swipe");
+  assert.equal(at(47), null, "a short drag is not a swipe");
+  assert.equal(at(-48), "next", "the threshold itself is a deliberate swipe");
+  assert.equal(at(-80, 200), null, "a vertical scroll must never turn the page");
+  assert.equal(at(0), null, "a tap has no horizontal travel");
+  assert.equal(at(-160, 4, 3), null, "Android's back-gesture edge must be left alone");
+  assert.equal(at(160, 4, 397), null, "the system edge must be left alone on both sides");
+  assert.equal(at(-48, 40), null, "1.2× horizontal dominance is not enough");
+  assert.equal(at(-160, 200), null, "vertical intent still wins");
+  assert.equal(at(-160, 4, 200), "next", "a clean horizontal drag away from the edges turns the page");
+  assert.equal(at(NaN), null, "an invalid gesture must not navigate");
+  assert.equal(at(-160, Number.NaN), null, "an invalid gesture must not navigate");
+});
+
+check("F6: the card is wired to that logic, with scroll and taps left intact", () => {
+  assert.match(RECITER, /resolveSwipeNav\(/, "the touch handler must use the tested decision");
+  assert.match(RECITER, /touchAction: "pan-y"/, "vertical scrolling must stay native");
+  assert.match(RECITER, /onTouchCancel=\{onTouchCancel\}/, "a cancelled gesture must clear the start point");
+  assert.match(RECITER, /e\.touches\.length !== 1/, "a second finger must not turn the first one's drag into a page turn");
+  assert.match(RECITER, /const go = useCallback\(\s*\n\s*\(delta: 1 \| -1\)/,
+    "buttons and swipe must share one navigation function");
+  assert.match(RECITER, /onClick=\{\(\) => go\(-1\)\}/, "the previous button must use it");
+  assert.match(RECITER, /onClick=\{\(\) => go\(1\)\}/, "the next button must use it");
+  assert.match(RECITER, /if \(next < 0 \|\| next >= items\.length\) return;/,
+    "navigation must stop at both ends");
+  assert.match(RECITER, /disabled=\{index === 0\}/, "the first page must not go back");
+  assert.match(RECITER, /disabled=\{isLast\}/, "the last page must not go past the end");
+  assert.match(RECITER, /onClick=\{\(\) => toggleDhikrAudio\(item\)\}|<DhikrAudio item=\{item\} \/>/,
+    "audio controls must be real buttons the swipe handler leaves alone");
+});
+
+check("F7: the removed elements are gone from both screens", () => {
+  for (const [name, src] of [["reciter", RECITER], ["view", VIEW]]) {
+    assert.ok(!src.includes("✦"), `${name} still renders a gold star/diamond`);
+  }
+  assert.ok(!RECITER.includes("animate-float-up"), "the stuck sparkle burst is still wired");
+  assert.ok(!RECITER.includes("voiceChooseVoice"), "the system voice picker is still rendered");
+  assert.ok(!VIEW.includes("isTtsSupported"), "the card list still shows a TTS control");
+  assert.ok(!/\(v\.lang\)/.test(RECITER), "technical voice names are still printed");
+  for (const key of ["adhkar.voiceChooseVoice", "adhkar.voiceCount", "adhkar.voiceListening"]) {
+    assert.ok(!LOCALE.includes(key), `${key} is still shipped after the feature was removed`);
+  }
+});
+
+check("F8: only one recording can play, and it stops when the page changes", () => {
+  assert.match(AUDIO_LIB, /let audio: HTMLAudioElement \| null = null/,
+    "one shared element is what makes overlap impossible");
+  assert.match(AUDIO_LIB, /function silenceElement\(\)[\s\S]{0,220}audio\.pause\(\)/,
+    "starting another dhikr must pause the previous one");
+  const start = AUDIO_LIB.slice(AUDIO_LIB.indexOf("async function start"));
+  assert.match(start, /silenceElement\(\)/, "every new dhikr must stop the previous audio");
+  assert.match(RECITER, /const go = useCallback\([\s\S]{0,400}stopAdhkarAudio\(\)/,
+    "a page turn must stop the current recording");
+  assert.match(RECITER, /stopAdhkarAudio\(\);\s*\n\s*\},\s*\n\s*\[\]\s*\n\s*\);/,
+    "leaving the recite screen must stop the audio");
+  assert.match(VIEW, /useEffect\(\(\) => \(\) => stopAdhkarAudio\(\), \[\]\)/,
+    "leaving the adhkar list must stop a card's recording");
+  assert.match(VIEW, /stopAdhkarAudio\(\);[\s\S]{0,80}setReciting\(true\)/,
+    "entering the recite screen must stop a card's recording first");
+  assert.match(AUDIO_LIB, /publish\(\{ status: "paused" \}\)/, "pause must be a real state");
+  assert.match(AUDIO_LIB, /if \(!isOnline\(\)\)[\s\S]{0,120}error: "offline"/,
+    "offline must be detected before blaming the file");
+  assert.match(AUDIO_UI, /adhkar\.audioOffline/, "the Arabic offline message must be reachable");
+});
+
+check("F9: the reciter choice is remembered across launches", () => {
+  assert.match(AUDIO_LIB, /ward:v2:adhkar-reciter:v1/, "the choice needs a stable storage key");
+  assert.match(AUDIO_LIB, /export function loadAdhkarReciter/, "the choice must be loaded");
+  assert.match(AUDIO_LIB, /export function saveAdhkarReciter/, "the choice must be stored");
+  assert.match(AUDIO_UI, /saveAdhkarReciter\(event\.target\.value\)/, "the picker must persist the choice");
+  assert.match(AUDIO_LIB, /ADHKAR_RECITER_IDS as readonly string\[\]\)\.includes\(raw\)/,
+    "a corrupt or removed id must fall back instead of breaking playback");
+});
+
+/* The three cards that are an excerpt of the verse they play. Verified against
+   the Quran.com uthmani text: every other Quran card matches its verse(s) word
+   for word, these three are a suffix (9:129), or a closing part (21:87, 3:173).
+   Their recording is the whole verse, so the screen has to say so. */
+const EXCERPT_CARDS = ["day-hasbiyallah", "day-dua-yunus", "general-hasbunallah"];
+
+check("F10: a recording that says more or other than the card says so, and only those do", () => {
+  for (const item of adhkar.DHIKR_ITEMS) {
+    if (item.type === "quran") {
+      const flagged = EXCERPT_CARDS.includes(item.id);
+      if (flagged) {
+        assert.ok(item.audioNote, `${item.id} plays a whole verse but shows an excerpt with no note`);
+        assert.match(item.audioNote, /كاملة/, `${item.id} must say the recording reads the verse in full`);
+        assert.ok(!/[A-Za-z]/.test(item.audioNote), `${item.id} note must be Arabic, like every other note in the dataset`);
+        assert.ok(item.audio && item.audio.length > 0, `${item.id} must still point at the verse it plays`);
+      } else {
+        assert.equal(item.audioNote, undefined,
+          `${item.id} is not an excerpt, so a note about the recording would be false`);
+      }
+      continue;
+    }
+    /* Hadith: a note is allowed only when there really is a recording, and it
+       must be Arabic like every other note in the dataset. */
+    if (item.audioNote !== undefined) {
+      assert.ok(typeof item.hisnId === "number",
+        `${item.id} carries a recording note but no Hisn recording id`);
+      assert.ok(!/[A-Za-z]/.test(item.audioNote), `${item.id} note must be Arabic`);
+      assert.ok(item.audioNote.length > 5, `${item.id} note is too short to explain anything`);
+    }
+  }
+  /* The note is worthless if no screen renders it: it must be on the recite
+     panel AND on the card, because playback can start from either. */
+  assert.match(AUDIO_UI, /item\.audioNote/, "the recite panel must render the note");
+  assert.match(VIEW, /item\.audioNote/, "the card must render the note beside its play button");
+});
+
+/* The two hadith cards whose wording has no recording in Hisn al-Muslim: the
+   phrase is absent, so they stay silent and are reported rather than given an
+   unrelated file or a machine voice. */
+const HISN_UNAVAILABLE = ["day-huda-tuqa-afaf", "general-istighfar100"];
+
+check("F11: every hadith card either plays a verified recording or is explicitly unavailable", () => {
+  const hadith = adhkar.DHIKR_ITEMS.filter((i) => i.type === "hadith");
+  const missing = hadith.filter((i) => typeof i.hisnId !== "number").map((i) => i.id).sort();
+  assert.deepEqual(missing, [...HISN_UNAVAILABLE].sort(),
+    `the set of unrecorded hadith cards changed: ${missing.join(", ") || "none"}`);
+  let recorded = 0;
+  for (const item of hadith) {
+    if (typeof item.hisnId !== "number") {
+      assert.equal(item.audioNote, undefined, `${item.id} has no recording, so it must carry no recording note`);
+      continue;
+    }
+    recorded += 1;
+    assert.ok(Number.isInteger(item.hisnId) && item.hisnId > 0 && item.hisnId < 300,
+      `${item.id} has an implausible Hisn id: ${item.hisnId}`);
+    assert.equal(hisnmuslim.hisnAudioUrl(item.hisnId),
+      `https://www.hisnmuslim.com/audio/ar/${item.hisnId}.mp3`,
+      `${item.id} builds the wrong recording URL`);
+  }
+  assert.equal(recorded, hadith.length - HISN_UNAVAILABLE.length,
+    "a recorded hadith card was lost");
 });
 
 /* ------------------------------------------------------------------ */

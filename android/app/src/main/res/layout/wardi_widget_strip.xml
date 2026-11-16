@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wardi prayer strip — 4×1.
+  Five prayers (names + times), one column each, the next prayer highlighted.
+  Colors and the root layout direction are bound at runtime by
+  WardiWidgetRenderer, so light/dark skins and Arabic/English share this one
+  layout. IDs are stable for RemoteViews.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wardi_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/wardi_widget_bg_dark"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:id="@+id/strip_cell_fajr"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/strip_name_fajr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الفجر"
+                android:textSize="11sp"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/strip_time_fajr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="٥:٣٤ ص"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/strip_cell_dhuhr"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/strip_name_dhuhr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الظهر"
+                android:textSize="11sp"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/strip_time_dhuhr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="١٢:٠٣ م"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/strip_cell_asr"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/strip_name_asr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="العصر"
+                android:textSize="11sp"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/strip_time_asr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="٤:٢٦ م"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/strip_cell_maghrib"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/strip_name_maghrib"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="المغرب"
+                android:textSize="11sp"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/strip_time_maghrib"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="٧:٠٧ م"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/strip_cell_isha"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/strip_name_isha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="العشاء"
+                android:textSize="11sp"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/strip_time_isha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="٨:٢٠ م"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>

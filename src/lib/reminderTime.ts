@@ -38,6 +38,16 @@ export function nextReminderAt(time: string, now: Date = new Date()): Date | nul
 }
 
 /**
+ * `date` shifted back by `minutes`, the single definition of "N minutes before
+ * the prayer". Negative/NaN input is treated as 0 rather than moving the
+ * reminder *after* the prayer.
+ */
+export function minutesBefore(date: Date, minutes: number): Date {
+  const safe = Number.isFinite(minutes) ? Math.max(0, Math.trunc(minutes)) : 0;
+  return new Date(date.getTime() - safe * 60_000);
+}
+
+/**
  * Stable key describing the current schedule. Callers re-schedule only when
  * this changes, which is what prevents duplicate notifications when several
  * triggers (midnight rollover, focus, resume) fire in quick succession.

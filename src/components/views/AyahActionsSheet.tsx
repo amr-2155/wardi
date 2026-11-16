@@ -5,9 +5,11 @@ import { useState } from "react";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { AyahActionBar, RelatedItem, SurahBadge, VerseText } from "@/components/quran";
+import { TafsirPanel } from "@/components/TafsirPanel";
 import { TafsirSections } from "@/components/TafsirSections";
 import { Sheet } from "@/components/ui";
 import { useLocale } from "@/lib/locale";
+import { buildTafsirModel } from "@/lib/tafsir";
 import type { QuranData } from "@/hooks/useQuran";
 import { shareVerseCard } from "@/lib/shareCard";
 
@@ -104,8 +106,25 @@ export function AyahActionsSheet({
     ? `${resolved.chapter.name} · ${resolved.verse.number}`
     : ayahRef;
   const tafsir = ayahRef ? quran.getTafsir(ayahRef) : null;
+  /* The rich, reviewed source pack takes precedence; the legacy 24-entry
+     dataset remains the fallback so nothing that already worked disappears. */
+  const tafsirModel = ayahRef ? buildTafsirModel(ayahRef, quran.dataset) : null;
   const related = ayahRef ? quran.getRelated(ayahRef) : null;
   const bookmarked = ayahRef ? quran.isBookmarked(ayahRef) : false;
+  /* Why there is no reviewed article, phrased honestly instead of a generic
+     "no tafsir" line: the user deserves to know whether the verse is missing
+     from the dataset, the ref is wrong, or the pack simply has not covered it
+     yet — and whether an AI fallback exists in this build. */
+  const tafsirNotice =
+    tafsirModel?.status === "unavailable"
+      ? tafsirModel.reason === "no-dataset"
+        ? "tafsir.unavailable.noDataset"
+        : tafsirModel.reason === "invalid-ref"
+          ? "tafsir.unavailable.invalidRef"
+          : tafsirModel.aiEnabled
+            ? "tafsir.unavailable.noSource"
+            : "tafsir.unavailable.aiDisabled"
+      : "tadabbur.noTafsirHint";
 
   const playingThis =
     !!resolved &&
@@ -197,13 +216,15 @@ export function AyahActionsSheet({
             {/* TAFSIR */}
             <section className="mt-5">
               <h4 className="mb-2 text-sm font-black">{t("ayah.tafsirTitle")}</h4>
-              {tafsir ? (
+              {tafsirModel && tafsirModel.status !== "unavailable" ? (
+                <TafsirPanel model={tafsirModel} />
+              ) : tafsir ? (
                 <TafsirSections tafsir={tafsir} />
               ) : (
                 <div className="rounded-2xl border border-line bg-surface-2 p-4">
                   <p className="text-xs font-black text-ink">{t("tadabbur.noTafsirTitle")}</p>
                   <p className="mt-1 text-[11px] leading-5 text-muted">
-                    {t("tadabbur.noTafsirHint")}
+                    {t(tafsirNotice)}
                   </p>
                 </div>
               )}

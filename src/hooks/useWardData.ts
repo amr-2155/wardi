@@ -32,6 +32,7 @@ import {
   nextIncreaseInfo,
   pageRange,
   planFreezeUse,
+  resumeStartPage,
   wardPagesAvailable,
   type IncreaseInfo,
 } from "@/lib/ward";
@@ -79,6 +80,12 @@ export type WardData = {
    */
   todayPages: number;
   endPage: number;
+  /**
+   * The ward's planned range for today (`from` → `to`). This is the range the
+   * reader counts against; it does not shrink as pages are recorded and it does
+   * not move when a finished day advances the plan to tomorrow.
+   */
+  wardRange: { start: number; end: number };
   remainingPages: number;
   todayPercent: number;
   isDone: boolean;
@@ -137,14 +144,32 @@ export function useWardData(): WardData {
   const [today, setToday] = useState<string>(todayKey());
   const [residueAfterReset, setResidueAfterReset] = useState<string[]>([]);
 
+  /* Latest committed history, readable from the day-boundary listener without
+     re-installing it (that effect deliberately depends only on `loaded`). The
+     ref is written in an effect, never during render, so it is always the
+     history of the last committed render by the time `sync()` runs. */
+  const historyRef = useRef(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
   /* eslint-disable react-hooks/set-state-in-effect -- initial hydration-safe load from localStorage */
   useEffect(() => {
     const data = loadData();
-    setSettings(data.settings);
+    /* Apply the "resume from where you stopped" rule at load time too, so the
+       very first paint already shows the resumed start page instead of the
+       stale stored value flashing for one frame. `sync()` re-applies the same
+       rule on every later day boundary. */
+    const resumedSettings = (() => {
+      const readings = data.history.filter((item) => item.khatma === data.settings.khatmaNumber);
+      const next = resumeStartPage(readings, todayKey(), data.settings.currentPage, data.settings.totalPages);
+      return next === data.settings.currentPage ? data.settings : { ...data.settings, currentPage: next };
+    })();
+    setSettings(resumedSettings);
     setHistory(data.history);
     setProgress(data.progress);
     setLoaded(true);
-    applyThemeClass(data.settings.theme);
+    applyThemeClass(resumedSettings.theme);
     applyAccentClass(loadAccent());
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -237,6 +262,20 @@ export function useWardData(): WardData {
       const next = todayKey();
       reconcileReminderForDay(next);
       setToday((prev) => (prev === next ? prev : next));
+      /* ── Resume from the page actually reached ──
+         An unfinished ward day (the reader closed the mushaf midway) used to be
+         replayed in full the next day: `currentPage` only moved when the day was
+         completed. Now, whenever the day boundary is crossed -- at mount and at
+         every real rollover -- the start moves to the page right after the last
+         page actually read, so «وردي» continues from where the user stopped.
+         `resumeStartPage` is idempotent: a settled day, today's own partial
+         reading, a zero-page reservation and an already-advanced position never
+         move the start, and only the current khatma counts. */
+      setSettings((prev) => {
+        const readings = historyRef.current.filter((item) => item.khatma === prev.khatmaNumber);
+        const resumed = resumeStartPage(readings, next, prev.currentPage, prev.totalPages);
+        return resumed === prev.currentPage ? prev : { ...prev, currentPage: resumed };
+      });
     };
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -301,6 +340,20 @@ export function useWardData(): WardData {
   ]);
   const endPage = range.end;
 
+  /* The ward range the reader must count against. It comes from the day's
+     planned range, never from `todayReading.endPage` (which shrinks to the
+     pages actually read) and never from `settings.currentPage` once a finished
+     day has advanced it to tomorrow. */
+  const wardRange = useMemo(() => {
+    const r = todayReading;
+    if (r && Number.isInteger(r.plannedStart) && Number.isInteger(r.plannedEnd)) {
+      return { start: r.plannedStart as number, end: r.plannedEnd as number };
+    }
+    // Legacy completed entries stored the full range in startPage/endPage.
+    if (r?.completed) return { start: r.startPage, end: r.endPage };
+    return { start: startPage, end: endPage };
+  }, [todayReading, startPage, endPage]);
+
   /* Real pages available in today's ward.
      On the final khatma day the mushaf runs out before the scheduled ward does,
      so `dailyPages` overstates what can actually be read. Using the scheduled
@@ -319,7 +372,14 @@ export function useWardData(): WardData {
 
   const tomorrow = addDays(today, 1);
   const tomorrowPages = effectiveDailyPages(settings, tomorrow);
-  const tomorrowRange = pageRange(range.next, tomorrowPages, settings.totalPages);
+  /* Tomorrow starts where today actually stopped, not where today's block
+     ended: an unfinished day folds its remainder into the next ward instead of
+     replaying the same pages. Mirrors `resumeStartPage`, which applies the same
+     rule across a real day boundary. */
+  const tomorrowStart = isDone
+    ? range.next
+    : Math.min(settings.totalPages, range.start + todayProgress);
+  const tomorrowRange = pageRange(tomorrowStart, tomorrowPages, settings.totalPages);
 
   const khatmaPercent = useMemo(
     () => khatmaProgressPercent(settings.currentPage, settings.totalPages),
@@ -488,6 +548,11 @@ export function useWardData(): WardData {
           khatma: settings.khatmaNumber,
           startPage: from,
           endPage: to,
+          // The full planned range. `recordToday` narrows startPage/endPage to
+          // what was actually read, so the plan is kept separately — the reader
+          // counts against this range and it never shrinks mid-ward.
+          plannedStart: from,
+          plannedEnd: to,
           // 0 pages: this reserves the day's ward, it does not record reading.
           // backlog's readFor() reads this field, so a planned-but-unread day
           // must not cancel the debt it owes. recordToday fills it in.
@@ -530,6 +595,13 @@ export function useWardData(): WardData {
       setProgress({ date: today, pages: next });
       const mode: ReadingMode =
         settings.manualOverride && settings.manualOverride.date === today ? "manual" : "auto";
+      /* Keep the day's planned range intact. `todayReading` stores what was
+         actually read; without this the plan would collapse to the first page
+         read and the reader would treat the ward as finished. */
+      const planStart = todayReading?.plannedStart ?? todayReading?.startPage ?? startPage;
+      const planEnd =
+        todayReading?.plannedEnd ??
+        (todayReading?.completed ? todayReading.endPage : range.end);
       setHistory((prev) => {
         if (next === 0) return prev.filter((item) => item.date !== today);
         return upsertReading(prev, {
@@ -538,13 +610,15 @@ export function useWardData(): WardData {
           khatma: settings.khatmaNumber,
           startPage,
           endPage: Math.min(settings.totalPages, startPage + next - 1),
+          plannedStart: planStart,
+          plannedEnd: planEnd,
           pages: next,
           completed: false,
           mode,
         });
       });
     },
-    [today, todayReading, todayPages, startPage, settings]
+    [today, todayReading, todayPages, startPage, range.end, settings]
   );
 
   const setTodayProgress = useCallback(
@@ -588,6 +662,8 @@ export function useWardData(): WardData {
       khatma: settings.khatmaNumber,
       startPage,
       endPage,
+      plannedStart: todayReading?.plannedStart ?? startPage,
+      plannedEnd: todayReading?.plannedEnd ?? endPage,
       // todayPages, not dailyPages: on the final khatma day the ward is
       // truncated by the end of the mushaf, and recording the scheduled number
       // inflated totalRead, averages and the khatma summary.
@@ -727,6 +803,7 @@ export function useWardData(): WardData {
     dailyPages,
     todayPages,
     endPage,
+    wardRange,
     remainingPages,
     todayPercent,
     isDone,

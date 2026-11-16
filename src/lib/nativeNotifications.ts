@@ -25,6 +25,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { PRAYERS_ADHAN, type PrayerId, type PrayerTimes } from "./prayer";
 import type { PrayerSettings } from "./prayerSettings";
 import { getLocaleFromStorage, t as translate } from "./locale";
+import { minutesBefore } from "./reminderTime";
 
 export function isNativePlatform(): boolean {
   try {
@@ -91,6 +92,7 @@ export function prayerScheduleSignature(
     settings.adhanEnabled ? 1 : 0,
     settings.preAdhanReminderEnabled ? 1 : 0,
     settings.preAdhanLeadMin,
+    PRAYERS_ADHAN.map((p) => (settings.prePrayerPerPrayer[p] ? 1 : 0)).join(""),
     settings.iqamaOffsetMin,
     settings.iqamaReminderEnabled ? 1 : 0,
     settings.iqamaReminderLeadMin,
@@ -193,8 +195,8 @@ export async function schedulePrayerNotifications(
         extra: { kind: "adhan", prayer: p },
       });
     }
-    if (settings.preAdhanReminderEnabled) {
-      const at = t - settings.preAdhanLeadMin * 60000;
+    if (settings.preAdhanReminderEnabled && settings.prePrayerPerPrayer[p]) {
+      const at = minutesBefore(times[p], settings.preAdhanLeadMin).getTime();
       if (at > now) {
         // `reminder.*` is the daily WARD reminder ({{n}}/{{from}}/{{to}}).
         // The pre-adhan reminder has its own {{prayer}} keys; using the ward

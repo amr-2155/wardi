@@ -49,6 +49,7 @@ export const USER_DATA_KEYS: readonly UserDataKey[] = [
   // --- Audio preferences + resume (lib/audio/storage.ts) ---
   { key: "wardi:audio:settings-v1", category: "audio" },
   { key: "wardi:audio:resume-v1", category: "audio" },
+  { key: "ward:v2:adhkar-reciter:v1", category: "audio" },
 
   // --- Mushaf reader preferences + session ---
   { key: "ward:v2:mushaf:theme", category: "reader" },

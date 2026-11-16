@@ -33,10 +33,69 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Home-screen prayer widgets. All three sizes render from the same
+             payload the app pushes, so they can never drift from the app. -->
+        <receiver
+            android:name=".WardiPrayerWidgetStrip"
+            android:exported="true"
+            android:label="@string/wardi_widget_strip_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wardi_prayer_widget_strip" />
+        </receiver>
+
+        <receiver
+            android:name=".WardiPrayerWidgetNext"
+            android:exported="true"
+            android:label="@string/wardi_widget_next_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wardi_prayer_widget_next" />
+        </receiver>
+
+        <receiver
+            android:name=".WardiPrayerWidgetOverview"
+            android:exported="true"
+            android:label="@string/wardi_widget_overview_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wardi_prayer_widget_overview" />
+        </receiver>
+
+        <!-- Redraws at the next prayer boundary / midnight, and after a boot or
+             a clock change. Works with the app closed: it reads the stored
+             payload and always re-arms the next boundary. -->
+        <receiver
+            android:name=".WardiWidgetRefresh"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.wardi.app.action.REFRESH_WIDGETS" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Re-arm the widget refresh alarm after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Web Vibration API: without this the dhikr "done" pulse is silently
+         dropped by the WebView, which is why the counter never felt like it
+         responded on the phone. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

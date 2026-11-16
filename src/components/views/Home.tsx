@@ -46,13 +46,24 @@ export function HomeView({
 }) {
   const { t, locale } = useLocale();
   const [wardSheet, setWardSheet] = useState(false);
+  /* The ward is a RANGE (from → to), matching how it is written in the mushaf:
+     "from page 1 to page 25". The count is derived, never typed, so the sheet
+     cannot describe a range the reader will not actually open. */
   const [draftFrom, setDraftFrom] = useState(data.startPage);
-  const [draftCount, setDraftCount] = useState(data.dailyPages);
+  const [draftTo, setDraftTo] = useState(data.endPage);
 
   const wardTotal = Math.max(1, data.settings.totalPages || 604);
-  const wardFrom = Math.max(1, Math.round(draftFrom || data.startPage));
-  const wardCount = Math.max(1, Math.round(draftCount || data.dailyPages));
-  const wardTo = Math.min(wardTotal, wardFrom + wardCount - 1);
+  const wardFrom = Math.min(wardTotal, Math.max(1, Math.round(draftFrom || data.startPage)));
+  const wardTo = Math.min(wardTotal, Math.max(wardFrom, Math.round(draftTo || data.endPage)));
+  const wardCount = wardTo - wardFrom + 1;
+
+  /* Editing one end can no longer invert the range: pushing the start past the
+     end moves the end with it instead of producing an unsaveable ward. */
+  const setWardStart = (value: number) => {
+    const next = Math.min(wardTotal, Math.max(1, Math.round(value)));
+    setDraftFrom(next);
+    if (next > wardTo) setDraftTo(next);
+  };
 
   const applyWard = () => {
     data.setTodayWard(wardFrom, wardCount);
@@ -64,6 +75,7 @@ export function HomeView({
       totalPages: wardTo - wardFrom + 1,
       lastReadPage: wardFrom,
       highestPageReached: wardFrom,
+      recordedPages: [],
       completedPages: 0,
       completed: false,
       readAgain: false,
@@ -206,6 +218,7 @@ export function HomeView({
           <ProgressRing
             percent={todayPercent}
             animated
+            showDot
             size={106}
             stroke={8}
             track="rgba(255,255,255,0.14)"
@@ -231,6 +244,18 @@ export function HomeView({
             </span>
             <span>{t("home.remaining", { n: data.remainingPages })}</span>
           </div>
+          {/* The next day's ward is already decided (it starts at the page after
+              today's last one), so showing it up front answers "what comes
+              tomorrow?" without waiting for today to be completed. */}
+          {!data.isDone && (
+            <p className="mt-2 text-[10px] font-bold text-white/45">
+              {t("home.tomorrow", {
+                from: data.tomorrowStart,
+                to: data.tomorrowEnd,
+                n: data.tomorrowPages,
+              })}
+            </p>
+          )}
         </div>
 
         <div className="relative mt-5 space-y-2">
@@ -278,6 +303,15 @@ export function HomeView({
                 <span className="pointer-events-none absolute inset-y-0 -start-24 w-40 -skew-x-12 bg-white/30 blur-[6px]" style={{ animation: "shimmer-sweep 4.2s ease-in-out infinite" }} />
                 <BookOpen size={20} />
                 {t("home.readNow")}
+                <ProgressRing
+                  percent={todayPercent}
+                  showDot
+                  size={22}
+                  stroke={2.5}
+                  track="rgba(14,43,33,0.18)"
+                  bar="var(--primary-deep)"
+                  dotColor="var(--primary-deep)"
+                />
               </button>
               <button
                 type="button"
@@ -286,6 +320,14 @@ export function HomeView({
               >
                 <BookMarked size={15} />
                 {t("home.wardBtn")}
+                <ProgressRing
+                  percent={todayPercent}
+                  showDot
+                  size={20}
+                  stroke={2.2}
+                  track="rgba(255,255,255,0.18)"
+                  bar="var(--gold)"
+                />
               </button>
             </>
           )}
@@ -590,7 +632,8 @@ export function HomeView({
         </div>
       )}
 
-      {/* WARD SHEET — the specified pages only for the ward */}
+      {/* WARD SHEET — pick the daily ward as a range (from → to). The size is
+          derived, and the same block advances automatically every day. */}
       <Sheet open={wardSheet} onClose={() => setWardSheet(false)} title={t("home.ward")}>
         <div className="mb-3 rounded-2xl bg-surface-2 p-3 leading-relaxed text-[11px] text-muted">
           {t("home.wardExplain", {
@@ -599,8 +642,26 @@ export function HomeView({
             count: wardCount,
           })}
         </div>
-        <NumberField label={t("mushaf.wardFrom")} value={wardFrom} onChange={setDraftFrom} min={1} />
-        <NumberField label={t("home.pageCount")} value={wardCount} onChange={setDraftCount} min={1} />
+        <NumberField
+          label={t("mushaf.wardFrom")}
+          value={wardFrom}
+          onChange={setWardStart}
+          min={1}
+          max={wardTotal}
+        />
+        <NumberField
+          label={t("home.wardTo")}
+          value={wardTo}
+          onChange={setDraftTo}
+          min={1}
+          max={wardTotal}
+        />
+        <p className="mt-1 text-center text-[11px] font-bold text-muted">
+          {t("home.pageCount")}: {wardCount}
+        </p>
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-muted">
+          {t("home.wardAuto")}
+        </p>
         <button
           type="button"
           onClick={applyWard}

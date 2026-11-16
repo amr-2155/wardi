@@ -30,15 +30,6 @@ export function dhikrFinal(): void {
   buzz([18, 55, 28, 55, 46]);
 }
 
-/**
- * One repetition of a counted dhikr: a single, short pulse. It is deliberately
- * soft and brief — a hundred repetitions must feel like counting, not like a
- * phone rattling inside a drawer.
- */
-export function dhikrTap(): void {
-  buzz(12);
-}
-
 /** Ward completed: warm triple pulse. */
 export function celebrateWard(): void {
   buzz([25, 40, 25]);

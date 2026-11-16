@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/test-ward.mjs && node scripts/test-quran.mjs && node scripts/test-offline.mjs && node scripts/test-audio.mjs && node scripts/test-mushaf.mjs && node scripts/test-w1.mjs && node scripts/test-w2.mjs && node scripts/test-tadabbur.mjs && node scripts/test-adhkar.mjs && node scripts/test-dataset-failure.mjs && node scripts/test-dataset-reload.mjs && node scripts/test-dataset-timeout.mjs && node scripts/test-dialog-a11y.mjs && node scripts/test-ayah-menu.mjs && node scripts/test-immersive.mjs",
+    "test": "node scripts/test-ward.mjs && node scripts/test-quran.mjs && node scripts/test-offline.mjs && node scripts/test-audio.mjs && node scripts/test-mushaf.mjs && node scripts/test-w1.mjs && node scripts/test-w2.mjs && node scripts/test-reminders.mjs && node scripts/test-tadabbur.mjs && node scripts/test-adhkar.mjs && node scripts/test-dataset-failure.mjs && node scripts/test-dataset-reload.mjs && node scripts/test-dataset-timeout.mjs && node scripts/test-dialog-a11y.mjs && node scripts/test-ayah-menu.mjs && node scripts/test-immersive.mjs && node scripts/test-tafsir-engine.mjs",
     "typecheck": "next typegen && tsc --noEmit",
+    "verify:verses": "node --experimental-strip-types scripts/verify-adhkar-verses.mjs",
+    "verify:hisn": "node scripts/verify-hisn-audio.mjs",
     "audit": "node scripts/check-audit.mjs"
   },
   "dependencies": {

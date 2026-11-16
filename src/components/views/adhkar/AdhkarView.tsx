@@ -16,8 +16,6 @@ import {
   Sunrise,
   Sunset,
   UtensilsCrossed,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, ScreenHeader, Toggle } from "@/components/ui";
@@ -25,6 +23,8 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { DHIKR_CATEGORIES, DHIKR_ITEMS, getCategoryDhikr } from "@/data/adhkar";
 import type { DhikrCategoryId, DhikrItem } from "@/data/adhkar";
 import { DhikrReciter } from "@/components/views/adhkar/DhikrReciter";
+import { DhikrAudio } from "@/components/views/adhkar/DhikrAudio";
+import { VersesMushaf } from "@/components/views/adhkar/VersesMushaf";
 import {
   bumpDhikrCount,
   loadAdhkarCounts,
@@ -36,7 +36,7 @@ import { loadDhikrFeedback, playCompletionFeedback, playDhikrTapFeedback, saveDh
 import { matchesAnyArabic } from "@/lib/arabicSearch";
 import { msUntilNextMidnight, todayKey } from "@/lib/dates";
 import { useLocale } from "@/lib/locale";
-import { isTtsSupported, loadSelectedVoiceName, speakDhikr, stopDhikrSpeech } from "@/lib/dhikrTts";
+import { stopAdhkarAudio } from "@/lib/adhkarAudio";
 
 const CATEGORY_ICONS: Record<DhikrCategoryId, React.ComponentType<{ size?: number; className?: string }>> = {
   morning: Sunrise,
@@ -131,6 +131,11 @@ export function AdhkarView({ onBack }: { onBack: () => void }) {
     if (!loaded) return;
     saveAdhkarFavorites(favorites);
   }, [favorites, loaded]);
+
+  /* A card in this list can start a recitation, and leaving the whole adhkar
+     screen is not a reason to keep a voice talking from a screen the user can
+     no longer see. Unmounting the list stops the shared player. */
+  useEffect(() => () => stopAdhkarAudio(), []);
 
   const toggleFavorite = useCallback((itemId: string) => {
     setFavorites((prev) =>
@@ -415,7 +420,12 @@ function AdhkarCategoryList({
       {(categoryId === "morning" || categoryId === "evening") && (
         <button
           type="button"
-          onClick={() => setReciting(true)}
+          onClick={() => {
+            /* A card's recording must not keep playing inside the recite
+               page, which starts its own audio. */
+            stopAdhkarAudio();
+            setReciting(true);
+          }}
           className="mt-5 flex w-full items-center gap-3.5 rounded-3xl border border-gold/40 bg-gradient-to-l from-gold-soft to-surface p-4 text-start shadow-sm transition hover:border-gold/70 hover:shadow-md active:scale-[0.99] animate-fade-up focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           style={{ animationDelay: "40ms" }}
         >
@@ -536,7 +546,6 @@ function DhikrCard({
   const target = item.count ?? 1;
   const isMulti = target > 1;
   const done = current >= target;
-  const [speaking, setSpeaking] = useState(false);
 
   /* The counter is a toggle, like the heart beside it: back to zero once the
      dhikr is complete, so a mis-tap can be undone without reloading.
@@ -552,12 +561,12 @@ function DhikrCard({
     }
     const next = Math.min(target, current + 1);
     onSetCount(item.id, next);
-    /* Per-tap feedback: on the last rep, final resolution; otherwise, light tap. */
+    /* Per-tap feedback: the last repetition is the distinct resolution (tone +
+       pulse), every other repetition is the soft tick. Playing both on the last
+       tap muddied the one sound that means "done". */
     const prefs = loadDhikrFeedback();
-    /* Per-tap feedback for every increment. */
-    playDhikrTapFeedback(loadDhikrFeedback());
-    /* Completion feedback on the last rep. */
-    if (isMulti && next >= target) playCompletionFeedback(prefs);
+    if (next >= target) playCompletionFeedback(prefs);
+    else playDhikrTapFeedback(prefs);
   };
   const actionLabel = `${done ? t("adhkar.doneToday") : t("adhkar.markDone")} â€” ${t(
     "adhkar.progress",
@@ -582,24 +591,7 @@ function DhikrCard({
             </span>
           )}
         </div>
-        {isTtsSupported() && (
-          <button
-            type="button"
-            onClick={() => {
-              if (speaking) {
-                stopDhikrSpeech();
-                setSpeaking(false);
-              } else {
-                setSpeaking(true);
-                speakDhikr(item.text, loadSelectedVoiceName(), () => setSpeaking(false));
-              }
-            }}
-            aria-label={t("adhkar.playRecitation")}
-            className="shrink-0 rounded-xl p-2 text-muted transition active:scale-90 hover:text-gold-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            {speaking ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
-        )}
+        <DhikrAudio item={item} variant="compact" />
         <button
           type="button"
           onClick={() => onToggleFavorite(item.id)}
@@ -618,33 +610,36 @@ function DhikrCard({
       <div
         className={
           item.type === "quran"
-            ? "mx-3 mt-3 rounded-2xl border border-gold/40 bg-gold-soft/40 px-4 py-5 text-center"
+            ? "mx-3 mt-3 rounded-2xl border border-gold/40 bg-gold-soft/40 px-4 py-5 text-dhikr-quran"
             : "px-4 pt-4"
         }
       >
         {item.title && (
-          <p className="mb-3 flex items-center justify-center gap-2 text-sm font-black text-gold-strong">
-            {/* Decorative diamond (outside the Arabic block, so the W2
-                no-hardcoded-Arabic gate stays green). */}
-            <span aria-hidden="true">âœ¦</span>
+          <p className="mb-3 text-center text-sm font-black text-gold-strong">
             {item.title}
-            <span aria-hidden="true">âœ¦</span>
           </p>
         )}
-        <p
-          className={`break-words whitespace-pre-line text-ink ${
-            item.type === "quran"
-              ? "text-dhikr text-dhikr-quran"
-              : "text-dhikr"
-          }`}
-        >
-          {item.text}
-        </p>
+        {item.type === "quran" ? (
+          <VersesMushaf text={item.text} size="sm" />
+        ) : (
+          <p className="break-words whitespace-pre-line text-ink text-dhikr">
+            {item.text}
+          </p>
+        )}
       </div>
 
       {item.note && (
         <p className="mx-4 mt-3 break-words border-s-2 border-gold/40 ps-3 text-xs leading-6 text-muted">
           {item.note}
+        </p>
+      )}
+
+      {/* Only the excerpt cards carry this. The play button sits on this card,
+          so the explanation of what the recording covers belongs here too, not
+          only on the recite screen. */}
+      {item.audioNote && (
+        <p className="mx-4 mt-2 break-words text-[11px] leading-5 text-muted">
+          {item.audioNote}
         </p>
       )}
 

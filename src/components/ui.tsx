@@ -2,9 +2,10 @@
 
 import { ArrowLeft, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { useLocale } from "@/lib/locale";
+import { isInRange, parseNumberDraft, resolveNumberDraft } from "@/lib/numericInput";
 
 export function Card({
   className = "",
@@ -116,25 +117,71 @@ export function NumberField({
   value,
   onChange,
   min = 1,
+  max,
+  step = 1,
+  decimals = 0,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
+  max?: number;
+  /** Browser stepping and mobile keyboard hint. */
+  step?: number;
+  /** Decimal places to keep (0 = whole numbers only). */
+  decimals?: number;
 }) {
+  /* The field edits a DRAFT string, not the numeric prop directly.
+     Writing straight from the prop meant clearing the box instantly pushed
+     `min` back in, so the old digits reappeared and a new value could never be
+     typed. While the field is focused the draft is shown as-is; the rest of the
+     time the committed prop is displayed, so external changes still appear.
+     No effect is involved: this is pure derivation, which avoids the cascading
+     render the React lint rule (rightly) rejects. */
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState(false);
+  const shown = editing ? draft : formatNumberDraft(value, decimals);
+
+  const commit = (raw: string) => {
+    const parsed = parseNumberDraft(raw, decimals);
+    if (parsed === null) return;
+    if (!isInRange(parsed, { min, max })) return;
+    if (decimals > 0) onChange(Number(parsed.toFixed(decimals)));
+    else onChange(Math.round(parsed));
+  };
+
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-bold text-muted">{label}</span>
       <input
         type="number"
-        inputMode="numeric"
+        inputMode={decimals > 0 ? "decimal" : "numeric"}
         min={min}
-        value={value}
-        onChange={(e) => onChange(e.target.value === "" ? min : Number(e.target.value))}
+        max={max}
+        step={step}
+        value={shown}
+        onFocus={() => {
+          setDraft(formatNumberDraft(value, decimals));
+          setEditing(true);
+        }}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setDraft(raw);
+          commit(raw);
+        }}
+        onBlur={() => {
+          setEditing(false);
+          onChange(resolveNumberDraft(draft, { min, max }, value, decimals));
+        }}
         className="w-full rounded-2xl bg-surface-2 px-4 py-3 text-sm font-bold outline-none transition focus:ring-2 focus:ring-primary/40"
       />
     </label>
   );
+}
+
+function formatNumberDraft(value: number, decimals: number): string {
+  if (!Number.isFinite(value)) return "";
+  return decimals > 0 ? String(Number(value.toFixed(decimals))) : String(Math.round(value));
 }
 
 export function SegmentControl<T extends string>({

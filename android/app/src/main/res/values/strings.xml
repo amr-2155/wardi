@@ -1,7 +1,21 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Wardi</string>
     <string name="title_activity_main">Wardi</string>
     <string name="package_name">com.wardi.app</string>
     <string name="custom_url_scheme">com.wardi.app</string>
+
+    <!-- Home-screen widgets: names shown in the launcher widget picker -->
+    <string name="wardi_widget_strip_name">مواقيت الصلاة</string>
+    <string name="wardi_widget_strip_desc">الصلوات الخمس اليوم ومواعيدها</string>
+    <string name="wardi_widget_next_name">الصلاة القادمة</string>
+    <string name="wardi_widget_next_desc">الصلاة القادمة والوقت المتبقي لها ومواقيت باقي الصلوات</string>
+    <string name="wardi_widget_overview_name">نظرة عامة على المواقيت</string>
+    <string name="wardi_widget_overview_desc">التاريخ الهجري والميلادي والموقع وجميع المواقيت مع تمييز القادمة</string>
+
+    <string name="wardi_widget_next_title">الصلاة القادمة</string>
+    <string name="wardi_widget_next_label">متبقي</string>
+    <string name="wardi_widget_view_all">عرض جميع المواقيت</string>
+    <string name="wardi_widget_open">افتح وردًا لتحديث المواقيت</string>
+    <string name="wardi_widget_open_short">افتح وردًا</string>
 </resources>

@@ -1,0 +1,262 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wardi next-prayer widget â€” 4أ—2.
+  Left: the next prayer (label, name, time, remaining time).
+  Right: all six times of the day as equal rows, the next one highlighted.
+  Colors and layout direction are bound at runtime by WardiWidgetRenderer.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wardi_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/wardi_widget_bg_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
+
+        <!-- Next prayer panel -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="35"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/next_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ط§ظ„طµظ„ط§ط© ط§ظ„ظ‚ط§ط¯ظ…ط©"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:textColor="#9AA89F"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/next_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:text="ط§ظ„ظپط¬ط±"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#D9B366"
+                android:ellipsize="end"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/next_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="ظ¥:ظ£ظ¤ طµ"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#E8EFE9"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/next_countdown"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="ظ…طھط¨ظ‚ظٹ ط³ط§ط¹ط©"
+                android:textSize="10sp"
+                android:textColor="#D9B366"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/next_divider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/wardi_widget_line_dark" />
+
+        <!-- All six times, equal rows so the card fits 2 cells at any density -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="65"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/row_fajr"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_fajr"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ظپط¬ط±"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_fajr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ¥:ظ£ظ¤ طµ"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_sunrise"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_sunrise"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ط´ط±ظˆظ‚"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_sunrise"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ¦:ظ¥ظ¦ طµ"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_dhuhr"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_dhuhr"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ط¸ظ‡ط±"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_dhuhr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ،ظ¢:ظ ظ£ ظ…"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_asr"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_asr"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ط¹طµط±"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_asr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ¤:ظ¢ظ¦ ظ…"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_maghrib"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_maghrib"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ظ…ط؛ط±ط¨"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_maghrib"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ§:ظ ظ§ ظ…"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_isha"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+                <TextView
+                    android:id="@+id/row_name_isha"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="ط§ظ„ط¹ط´ط§ط،"
+                    android:textSize="10sp"
+                    android:textColor="#9AA89F"
+                    android:maxLines="1" />
+                <TextView
+                    android:id="@+id/row_time_isha"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ظ¨:ظ¢ظ  ظ…"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="#E8EFE9"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

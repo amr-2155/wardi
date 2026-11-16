@@ -62,11 +62,13 @@ check("I3: a tap on the page toggles the tools", () => {
   assert.match(fn, /else showChrome\(\);/, "a tap must open closed tools");
 });
 
-check("I4: toggling never shows the page pill as well", () => {
-  const body = reader.slice(reader.indexOf("const onSingleTap = useCallback("));
-  const fn = body.slice(0, body.indexOf("}, ["));
-  assert.doesNotMatch(fn, /showPill\(/, "the header already carries the position");
-  assert.match(reader, /\{pill && !chrome && !celebration &&/, "the pill belongs to the hidden-chrome state only");
+check("I4: the page number belongs to the chrome-hidden reading surface", () => {
+  /* The header carries the surah/juz/hizb line only; the printed-mushaf page
+     number sits at the foot of the page, and the footer carries it when the
+     tools are up. Both are never on screen at once. */
+  assert.match(reader, /\{page !== null && !chrome && !celebration &&/,
+    "the page number must appear only while the tools are away");
+  assert.doesNotMatch(reader, /\{pill && !chrome/, "no second, competing page pill");
 });
 
 /* ---- overlays, not layout ---- */

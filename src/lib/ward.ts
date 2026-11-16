@@ -32,6 +32,48 @@ export function pageRange(start: number, pages: number, totalPages: number): Pag
   return { start: from, end, next };
 }
 
+/** The history fields this module needs to resume a ward. Pure input. */
+export type WardResumeReading = {
+  date: string;
+  startPage: number;
+  pages: number;
+  completed: boolean;
+};
+
+/**
+ * Where the next day's ward starts.
+ *
+ * Two cases only:
+ *  - the latest reading is SETTLED (completed): `completeToday` already moved
+ *    `currentPage` past that block, so the stored value is authoritative;
+ *  - the latest reading is PARTIAL: the reader closed the mushaf mid-ward, so
+ *    the start moves to the page right after the last page actually read. That
+ *    is the "continue from where I stopped" contract — the rest of the old
+ *    block is simply folded into the new one, so no page is ever skipped.
+ *
+ * A reading dated today (or later), a zero-page reservation made by the ward
+ * sheet, and entries from another khatma (filtered by the caller) never move
+ * the start. The result is idempotent: the same partial entry always yields
+ * the same page, and an already-advanced position is never pulled backwards.
+ */
+export function resumeStartPage(
+  readings: ReadonlyArray<WardResumeReading>,
+  today: string,
+  currentPage: number,
+  totalPages: number
+): number {
+  const total = Math.max(1, totalPages);
+  const clamp = (n: number): number => Math.min(total, Math.max(1, Math.round(n)));
+  let latest: WardResumeReading | null = null;
+  for (const item of readings) {
+    if (latest === null || item.date > latest.date) latest = item;
+  }
+  if (!latest || latest.completed || latest.date >= today || latest.pages <= 0) {
+    return clamp(currentPage);
+  }
+  return Math.max(clamp(currentPage), clamp(latest.startPage + latest.pages));
+}
+
 /**
  * Pages that genuinely exist in today's ward.
  *

@@ -1,19 +1,19 @@
 /**
- * Text-to-speech for adhkar. There is no bundled sheikh audio in the app, so
- * the recitation is synthesized: Android's TextToSpeech inside the native app,
- * the browser's SpeechSynthesis on the web. The selected voice is persisted so
- * the choice survives a reload.
+ * Text-to-speech for the app's own sentences.
  *
- * The Quran-com audio provider only carries Quran verses, never adhkar, so a
- * real sheikh recording would have to ship as bundled assets or come from a
- * dedicated CDN; until then this is the honest "hear it read aloud" path.
+ * Every adhkar recording is now a real reciter (see `adhkarAudio.ts`), so the
+ * only thing left that is honestly synthesized is the app's own copy: the
+ * prayer reminder sentence. Nothing here ever voices the words of a dhikr or
+ * the Quran, and nothing here is attributed to a sheikh.
+ *
+ * Android's TextToSpeech backs it inside the native app, the browser's
+ * SpeechSynthesis on the web. The chosen system voice is still remembered for
+ * that use, but it is not offered as a list in any screen.
  */
 
 import { nativeDhikrVoice } from "@/lib/nativeDhikrVoice";
 
 const KEY = "ward:v2:dhikr-voice:v1";
-
-export type DhikrVoice = { name: string; lang: string };
 
 function webTtsAvailable(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
@@ -21,31 +21,6 @@ function webTtsAvailable(): boolean {
 
 export function isTtsSupported(): boolean {
   return nativeDhikrVoice() !== null || webTtsAvailable();
-}
-
-/** Arabic voices first, then everything else, so the picker is useful. */
-export function listDhikrVoices(): DhikrVoice[] {
-  if (!webTtsAvailable()) return [];
-  const voices = window.speechSynthesis.getVoices();
-  const ar = voices.filter((v) => /^ar/i.test(v.lang));
-  const rest = voices.filter((v) => !/^ar/i.test(v.lang));
-  return [...ar, ...rest].map((v) => ({ name: v.name, lang: v.lang }));
-}
-
-/** Voices from whichever engine backs this platform. */
-export async function getDhikrVoices(): Promise<DhikrVoice[]> {
-  const native = nativeDhikrVoice();
-  if (native) {
-    try {
-      const { voices } = await native.listVoices();
-      const ar = voices.filter((v) => /^ar/i.test(v.lang));
-      const rest = voices.filter((v) => !/^ar/i.test(v.lang));
-      return [...ar, ...rest];
-    } catch {
-      return [];
-    }
-  }
-  return listDhikrVoices();
 }
 
 export function loadSelectedVoiceName(): string | null {
@@ -65,7 +40,21 @@ export function saveSelectedVoiceName(name: string | null): void {
   }
 }
 
-export function speakDhikr(text: string, voiceName: string | null, onEnd?: () => void): void {
+export type SpeakOptions = {
+  lang?: string;
+  rate?: number;
+  voiceName?: string | null;
+};
+
+/**
+ * Speak arbitrary text with whichever engine this platform has. Used for the
+ * prayer reminder sentence, through the same native bridge (Android WebView
+ * has no SpeechSynthesis).
+ */
+export function speakText(text: string, options: SpeakOptions = {}, onEnd?: () => void): void {
+  const lang = options.lang ?? "ar-SA";
+  const rate = options.rate ?? 0.9;
+  const voiceName = options.voiceName ?? null;
   const native = nativeDhikrVoice();
   if (native) {
     let settled = false;
@@ -86,9 +75,11 @@ export function speakDhikr(text: string, voiceName: string | null, onEnd?: () =>
         handle = h;
       })
       .catch(() => {});
-    native.speak({ text, voice: voiceName ?? undefined }).catch(finish);
+    native
+      .speak({ text, lang, rate, voice: voiceName ?? undefined })
+      .catch(finish);
     // Guard against an engine that never reports completion.
-    const guard = Math.max(4000, text.length * 200);
+    const guard = Math.max(4000, (text.length * 200) / Math.max(0.5, rate));
     window.setTimeout(finish, guard);
     return;
   }
@@ -99,11 +90,12 @@ export function speakDhikr(text: string, voiceName: string | null, onEnd?: () =>
   }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ar-SA";
-  utterance.rate = 0.9;
+  utterance.lang = lang;
+  utterance.rate = rate;
   const voices = window.speechSynthesis.getVoices();
   const chosen =
     (voiceName && voices.find((v) => v.name === voiceName)) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase())) ||
     voices.find((v) => /^ar/i.test(v.lang)) ||
     null;
   if (chosen) utterance.voice = chosen;

@@ -215,6 +215,7 @@ const SEED = {
   "ward:v2:quran-progress": JSON.stringify({ date: "2026-01-01", position: "1:1", wardStart: "1:1" }),
   "wardi:audio:settings-v1": JSON.stringify({ volume: 0.5 }),
   "wardi:audio:resume-v1": JSON.stringify({ surah: 1, ayah: 1, reciterId: "x" }),
+  "ward:v2:adhkar-reciter:v1": JSON.stringify("7"),
   "ward:v2:mushaf:theme": JSON.stringify("sepia"),
   "ward:v2:mushaf:fit": JSON.stringify({ scale: 1.1 }),
   "ward:v2:mushaf:session": JSON.stringify({ page: 42 }),
@@ -569,7 +570,12 @@ check("AUDIO: the element is never left in a paused-on-cleanup state during volu
 
 const reminderSrc = readFileSync(join(ROOT, "src", "lib", "wardReminder.ts"), "utf8");
 const useWardDataSrc = readFileSync(join(ROOT, "src", "hooks", "useWardData.ts"), "utf8");
-const settingsSrc = readFileSync(join(ROOT, "src", "components", "views", "Settings.tsx"), "utf8");
+const settingsSrc =
+  readFileSync(join(ROOT, "src", "components", "views", "Settings.tsx"), "utf8") +
+  /* The ward reminder card moved into the merged Reminders section, so the
+     status text it renders lives there now. Reading both keeps this check
+     pointed at the surface the user actually sees. */
+  readFileSync(join(ROOT, "src", "components", "RemindersSettingsPanel.tsx"), "utf8");
 
 check("B1: the reminder uses the OS alarm service, not a web timer", () => {
   assert.ok(/LocalNotifications\.schedule\(/.test(reminderSrc),

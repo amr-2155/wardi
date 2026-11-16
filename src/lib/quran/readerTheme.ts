@@ -22,7 +22,11 @@ export const MUSHAF_THEMES: MushafTheme[] = [
   { id: "midnight", page: "#000000" },
 ];
 
-export const DEFAULT_MUSHAF_THEME: MushafThemeId = "yellow";
+/* The reader opens on the black sheet. The reference design is a page of white
+   glyphs on one uninterrupted black surface, so the paper is not a colour the
+   default merely leans towards — it is the surface, and every other theme is an
+   explicit opt-in from the appearance sheet. */
+export const DEFAULT_MUSHAF_THEME: MushafThemeId = "midnight";
 
 export function loadMushafTheme(): MushafThemeId {
   try {

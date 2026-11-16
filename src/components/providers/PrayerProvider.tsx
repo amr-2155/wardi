@@ -39,6 +39,11 @@ import {
   prayerScheduleSignature,
   schedulePrayerNotifications,
 } from "@/lib/nativeNotifications";
+import { minutesBefore } from "@/lib/reminderTime";
+import { speakPrayerAlert } from "@/lib/prayerVoice";
+import { scheduleWhiteDaysReminders, whiteDaysScheduleSignature } from "@/lib/whiteDaysReminder";
+import { syncPrayerWidget } from "@/lib/prayerWidgetSync";
+import { useLocale } from "@/lib/locale";
 
 export type PrayerAlertKind = "adhan" | "reminder" | "iqama" | "iqamaReminder";
 
@@ -91,6 +96,7 @@ function localDateKey(d: Date): string {
 }
 
 export function PrayerProvider({ children }: { children: ReactNode }) {
+  const { locale } = useLocale();
   const [settings, setSettings] = useState<PrayerSettings>(() => loadPrayerSettings());
   const [coords, setCoords] = useState<CoordinatesLike>(() => ({
     latitude: loadPrayerSettings().latitude,
@@ -103,6 +109,9 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<PrayerId | null>(null);
   const [alert, setAlert] = useState<PrayerAlert | null>(null);
   const [playing, setPlaying] = useState(false);
+  /* Reactive copy of the local date. The ref drives the ticker; this state
+     lets the white-days scheduler re-arm when the day changes. */
+  const [dayKey, setDayKey] = useState<string>(() => localDateKey(new Date()));
 
   const settingsRef = useRef(settings);
   const todayRef = useRef<PrayerTimes | null>(null);
@@ -375,8 +384,17 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
 
   const fireReminder = useCallback(
     (prayer: PrayerId, time: Date) => {
-      if (lockedRef.current && settingsRef.current.reminderSoundEnabled) playChime();
-      // The pre-adhan reminder is NOT the daily ward reminder: `reminder.body`
+      const s = settingsRef.current;
+      if (s.prePrayerVoiceEnabled) {
+        /* Foreground only: Android will not start TTS from a backgrounded
+           page. `speakPrayerAlert` returns false when there is no engine, and
+           we fall back to the chime so the alert is never silent by accident. */
+        const spoke = speakPrayerAlert(prayer, getLocaleFromStorage());
+        if (!spoke && lockedRef.current && s.reminderSoundEnabled) playChime();
+      } else if (lockedRef.current && s.reminderSoundEnabled) {
+        playChime();
+      }
+      // The pre-prayer reminder is NOT the daily ward reminder: `reminder.body`
       // takes {{n}}/{{from}}/{{to}} (ward page numbers), so reusing it here
       // rendered literal ward placeholders in the banner. `prayer.*` keys
       // take {{prayer}} and are the ones this alert actually means.
@@ -432,6 +450,7 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
       const dk = localDateKey(nowD);
       if (dk !== dayKeyRef.current) {
         dayKeyRef.current = dk;
+        setDayKey(dk);
       }
 
       const useCoords = { latitude: s.latitude, longitude: s.longitude };
@@ -462,8 +481,8 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
         if (s.adhanEnabled && firedAt(t, nowTs, dkToday, p, "adhan")) {
           void fireAdhan(p);
         }
-        if (s.preAdhanReminderEnabled) {
-          if (firedAt(t - s.preAdhanLeadMin * 60000, nowTs, dkToday, p, "pre")) {
+        if (s.preAdhanReminderEnabled && s.prePrayerPerPrayer[p]) {
+          if (firedAt(minutesBefore(prayerTime, s.preAdhanLeadMin).getTime(), nowTs, dkToday, p, "pre")) {
             fireReminder(p, prayerTime);
           }
         }
@@ -522,6 +541,54 @@ export function PrayerProvider({ children }: { children: ReactNode }) {
       nativeCoveredRef.current = { native: true, events };
     });
   }, [today, settings, coords]);
+
+  /* ── Home-screen widget sync (Android app) ──
+     The launcher widget is a pure renderer: this side owns the calculation
+     (`computePrayerTimes` with the stored coordinates, method and madhab) and
+     pushes a rolling 14-day payload whenever the day, the calculation settings
+     or the location change, plus on locale change (digits/labels differ).
+     Theme is applied as a class on <html>, so watch that class to keep the
+     widget skin in step with light/dark — including the OS theme in "system". */
+  useEffect(() => {
+    if (!isNativePlatform() || !today) return;
+    const push = () =>
+      void syncPrayerWidget(new Date(), coords, settings.method, settings.asr);
+    push();
+    let lastDark = document.documentElement.classList.contains("dark");
+    const observer = new MutationObserver(() => {
+      const dark = document.documentElement.classList.contains("dark");
+      if (dark === lastDark) return;
+      lastDark = dark;
+      push();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, [today, coords, settings.method, settings.asr, locale]);
+
+  /* ── White Days (13/14/15 Hijri) reminders ──
+     Independent of prayer times, so it is not gated on `settings.enabled`.
+     The signature covers the two computed alarm times, which means it re-arms
+     when the setting changes AND when the day rolls over to a new month's
+     window, without ever scheduling on every tick. */
+  const whiteDaysSigRef = useRef<string>("");
+  useEffect(() => {
+    const sig = whiteDaysScheduleSignature({
+      enabled: settings.whiteDaysReminderEnabled,
+      time: settings.whiteDaysReminderTime,
+      offsetDays: settings.whiteDaysHijriOffset,
+    });
+    if (sig === whiteDaysSigRef.current) return;
+    whiteDaysSigRef.current = sig;
+    void scheduleWhiteDaysReminders({
+      enabled: settings.whiteDaysReminderEnabled,
+      time: settings.whiteDaysReminderTime,
+      offsetDays: settings.whiteDaysHijriOffset,
+      locale: getLocaleFromStorage(),
+    });
+  }, [settings, dayKey]);
 
   const value = useMemo<PrayerContextValue>(
     () => ({

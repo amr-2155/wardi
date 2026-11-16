@@ -1,5 +1,5 @@
-import type { AsrJuristic, CalculationMethodId } from "./prayer";
-import { DEFAULT_METHOD } from "./prayer";
+import type { AsrJuristic, CalculationMethodId, PrayerId } from "./prayer";
+import { DEFAULT_METHOD, PRAYERS_ADHAN } from "./prayer";
 
 export interface AdhanSound {
   id: string;
@@ -58,7 +58,27 @@ export type PrayerSettings = {
   iqamaReminderLeadMin: number;
   reminderSoundEnabled: boolean;
   browserNotifications: boolean;
+  /**
+   * Per-prayer switches for the pre-prayer reminder. `preAdhanReminderEnabled`
+   * is the master switch and keeps its original stored name so existing users
+   * keep whatever they had — these only narrow it down.
+   */
+  prePrayerPerPrayer: Record<PrayerId, boolean>;
+  /** Optional Arabic/English spoken alert when a prayer is near. */
+  prePrayerVoiceEnabled: boolean;
+  /** White Days (13/14/15) reminders. Opt-in: never fire unasked. */
+  whiteDaysReminderEnabled: boolean;
+  /** "HH:MM" local time for the two white-days reminders. */
+  whiteDaysReminderTime: string;
+  /** Hijri calendar correction in days, -2…+2. */
+  whiteDaysHijriOffset: number;
 };
+
+const allPrayers = (value: boolean): Record<PrayerId, boolean> =>
+  PRAYERS_ADHAN.reduce(
+    (acc, prayer) => ({ ...acc, [prayer]: value }),
+    {} as Record<PrayerId, boolean>
+  );
 
 export const DEFAULT_PRAYER_SETTINGS: PrayerSettings = {
   enabled: true,
@@ -76,6 +96,11 @@ export const DEFAULT_PRAYER_SETTINGS: PrayerSettings = {
   iqamaReminderLeadMin: 5,
   reminderSoundEnabled: true,
   browserNotifications: false,
+  prePrayerPerPrayer: allPrayers(true),
+  prePrayerVoiceEnabled: false,
+  whiteDaysReminderEnabled: false,
+  whiteDaysReminderTime: "20:00",
+  whiteDaysHijriOffset: 0,
 };
 
 const KEY = "ward:v2:prayer";
@@ -87,7 +112,7 @@ const num = (v: unknown, fallback: number): number => {
 
 export function sanitizePrayerSettings(raw: unknown): PrayerSettings {
   const d = DEFAULT_PRAYER_SETTINGS;
-  if (!raw || typeof raw !== "object") return { ...d };
+  if (!raw || typeof raw !== "object") return { ...d, prePrayerPerPrayer: { ...d.prePrayerPerPrayer } };
   const r = raw as Record<string, unknown>;
 
   const method = METHODS_IDS.includes(r.method as CalculationMethodId)
@@ -97,6 +122,23 @@ export function sanitizePrayerSettings(raw: unknown): PrayerSettings {
   const soundId = ADHAN_SOUNDS.some((s) => s.id === r.adhanSoundId)
     ? (r.adhanSoundId as string)
     : d.adhanSoundId;
+
+  /* Per-prayer switches: missing keys inherit the default (on), so an existing
+   * install that predates this feature keeps the reminder it already had. */
+  const perRaw = r.prePrayerPerPrayer;
+  const prePrayerPerPrayer = allPrayers(true);
+  if (perRaw && typeof perRaw === "object") {
+    for (const prayer of PRAYERS_ADHAN) {
+      const v = (perRaw as Record<string, unknown>)[prayer];
+      if (typeof v === "boolean") prePrayerPerPrayer[prayer] = v;
+    }
+  }
+
+  const whiteDaysTime =
+    typeof r.whiteDaysReminderTime === "string" &&
+    /^([01]?\d|2[0-3]):[0-5]\d$/.test(r.whiteDaysReminderTime.trim())
+      ? r.whiteDaysReminderTime.trim().padStart(5, "0")
+      : d.whiteDaysReminderTime;
 
   return {
     enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
@@ -109,15 +151,26 @@ export function sanitizePrayerSettings(raw: unknown): PrayerSettings {
     adhanEnabled: typeof r.adhanEnabled === "boolean" ? r.adhanEnabled : d.adhanEnabled,
     preAdhanReminderEnabled:
       typeof r.preAdhanReminderEnabled === "boolean" ? r.preAdhanReminderEnabled : d.preAdhanReminderEnabled,
-    preAdhanLeadMin: Math.max(1, Math.floor(num(r.preAdhanLeadMin, d.preAdhanLeadMin))),
+    /* Same bounds the fields enforce (1–120 / 1–60), so a value typed into an
+       older build cannot leave the reminder scheduled hours off. */
+    preAdhanLeadMin: Math.min(120, Math.max(1, Math.floor(num(r.preAdhanLeadMin, d.preAdhanLeadMin)))),
     iqamaOffsetMin: Math.max(0, Math.floor(num(r.iqamaOffsetMin, d.iqamaOffsetMin))),
     iqamaReminderEnabled:
       typeof r.iqamaReminderEnabled === "boolean" ? r.iqamaReminderEnabled : d.iqamaReminderEnabled,
-    iqamaReminderLeadMin: Math.max(1, Math.floor(num(r.iqamaReminderLeadMin, d.iqamaReminderLeadMin))),
+    iqamaReminderLeadMin: Math.min(60, Math.max(1, Math.floor(num(r.iqamaReminderLeadMin, d.iqamaReminderLeadMin)))),
     reminderSoundEnabled:
       typeof r.reminderSoundEnabled === "boolean" ? r.reminderSoundEnabled : d.reminderSoundEnabled,
     browserNotifications:
       typeof r.browserNotifications === "boolean" ? r.browserNotifications : d.browserNotifications,
+    prePrayerPerPrayer,
+    prePrayerVoiceEnabled:
+      typeof r.prePrayerVoiceEnabled === "boolean" ? r.prePrayerVoiceEnabled : d.prePrayerVoiceEnabled,
+    whiteDaysReminderEnabled:
+      typeof r.whiteDaysReminderEnabled === "boolean"
+        ? r.whiteDaysReminderEnabled
+        : d.whiteDaysReminderEnabled,
+    whiteDaysReminderTime: whiteDaysTime,
+    whiteDaysHijriOffset: Math.max(-2, Math.min(2, Math.trunc(num(r.whiteDaysHijriOffset, d.whiteDaysHijriOffset)))),
   };
 }
 

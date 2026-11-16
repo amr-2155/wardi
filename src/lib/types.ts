@@ -31,8 +31,16 @@ export type Reading = {
   id: string;
   date: string;
   khatma: number;
+  /** What was actually read today (may be narrower than the plan). */
   startPage: number;
   endPage: number;
+  /**
+   * The ward range planned for that day. Unlike `startPage`/`endPage` — which
+   * shrink to the pages actually read — this is fixed when the ward is set, so
+   * the reader always knows the full range it is counting against.
+   */
+  plannedStart?: number;
+  plannedEnd?: number;
   pages: number;
   completed: boolean;
   mode: ReadingMode;

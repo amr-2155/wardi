@@ -104,19 +104,30 @@ export function sanitizeReading(raw: unknown): Reading | null {
   const rawPages = Math.floor(num(r.pages, 1));
   const completed = typeof r.completed === "boolean" ? r.completed : true;
   const pages = completed ? Math.max(1, rawPages) : Math.max(0, rawPages);
-  return {
+  const startPage = Math.max(1, Math.floor(num(r.startPage, 1)));
+  const endPage = Math.max(
+    1,
+    Math.floor(num(r.endPage, typeof r.startPage === "number" ? r.startPage : 1))
+  );
+  const reading: Reading = {
     id: r.id,
     date: r.date,
     khatma: Math.max(1, Math.floor(num(r.khatma, 1))),
-    startPage: Math.max(1, Math.floor(num(r.startPage, 1))),
-    endPage: Math.max(
-      1,
-      Math.floor(num(r.endPage, typeof r.startPage === "number" ? r.startPage : 1))
-    ),
+    startPage,
+    endPage,
     pages,
     completed,
     mode: r.mode === "manual" ? "manual" : "auto",
   };
+  /* Planned range is preserved only when it is a sane, non-inverted pair.
+     Older entries simply keep it absent and fall back to startPage/endPage. */
+  if (r.plannedStart !== undefined || r.plannedEnd !== undefined) {
+    const plannedStart = Math.max(1, Math.floor(num(r.plannedStart, startPage)));
+    const plannedEnd = Math.max(plannedStart, Math.floor(num(r.plannedEnd, endPage)));
+    reading.plannedStart = plannedStart;
+    reading.plannedEnd = plannedEnd;
+  }
+  return reading;
 }
 
 export function sanitizeHistory(raw: unknown): Reading[] {

@@ -14,9 +14,12 @@ const pool = tafsir.entries.map((e) => e.ref);
 rmSync(OUT, { recursive: true, force: true });
 const libFiles = [
   join(ROOT, "src", "lib", "dates.ts"),
+  join(ROOT, "src", "lib", "types.ts"),
+  join(ROOT, "src", "lib", "ward.ts"),
   join(ROOT, "src", "lib", "quran", "types.ts"),
   join(ROOT, "src", "lib", "quran", "validate.ts"),
   join(ROOT, "src", "lib", "quran", "progress.ts"),
+  join(ROOT, "src", "lib", "quran", "mushafSession.ts"),
 ];
 
 execFileSync(
@@ -43,6 +46,21 @@ const {
   compensationPlan,
   wardRollover,
 } = await import(pathToFileURL(join(OUT_Q, "progress.js")).href);
+
+const { resumeStartPage } = await import(pathToFileURL(join(OUT, "ward.js")).href);
+
+const {
+  MUSHAF_SESSION_KEY,
+  defaultSession,
+  loadSession,
+  wardBounds,
+  recordedPagesOf,
+  wardReachedCount,
+  wardIsComplete,
+  recordWardPage,
+  legacyRecordedPages,
+  sanitizeRecordedPages,
+} = await import(pathToFileURL(join(OUT_Q, "mushafSession.js")).href);
 
 const day = (iso) => iso;
 const dateKey = (base, offset) => {
@@ -462,6 +480,282 @@ check("ward rollover: read pages are never negative", () => {
     readFor: (d) => (d === "2026-08-10" ? 999 : 0),
   });
   assert.equal(info.remainingPages, 0);
+});
+
+// ---- Resume from where the reader actually stopped ----
+const reading = (date, startPage, pages, completed = false) => ({
+  date,
+  startPage,
+  pages,
+  completed,
+});
+
+check("resume: an unfinished day continues right after the last page read", () => {
+  const next = resumeStartPage([reading("2026-08-10", 1, 10)], "2026-08-11", 1, 604);
+  assert.equal(next, 11, "starts at page 11, not back at 1");
+});
+
+check("resume: a settled day leaves the page completeToday already advanced", () => {
+  const hist = [reading("2026-08-10", 1, 25, true)];
+  assert.equal(resumeStartPage(hist, "2026-08-11", 26, 604), 26);
+});
+
+check("resume: today's own partial reading never moves today's start", () => {
+  const hist = [reading("2026-08-11", 11, 5)];
+  assert.equal(resumeStartPage(hist, "2026-08-11", 11, 604), 11);
+});
+
+check("resume: is idempotent once the start has been advanced", () => {
+  const hist = [reading("2026-08-10", 1, 10)];
+  const once = resumeStartPage(hist, "2026-08-11", 1, 604);
+  assert.equal(resumeStartPage(hist, "2026-08-11", once, 604), once);
+});
+
+check("resume: a zero-page ward reservation does not move the start", () => {
+  const hist = [reading("2026-08-10", 40, 0)];
+  assert.equal(resumeStartPage(hist, "2026-08-11", 40, 604), 40);
+});
+
+check("resume: only the most recent reading counts, and it is clamped to the mushaf", () => {
+  const hist = [
+    reading("2026-08-09", 40, 5),
+    reading("2026-08-10", 600, 10),
+  ];
+  assert.equal(resumeStartPage(hist, "2026-08-11", 600, 604), 604);
+});
+
+check("resume: an empty history keeps the configured start", () => {
+  assert.equal(resumeStartPage([], "2026-08-11", 7, 604), 7);
+});
+
+// ---- Ward lifecycle: range -> recorded pages -> completion ----
+/* The user-visible contract: a 1..25 ward opens at 0/25, gains exactly one
+   page per confirmed page, and is complete only after all 25 are confirmed.
+   Nothing about "which page am I on" may complete it. */
+const ward = (startPage, endPage, recordedPages = []) => ({ startPage, endPage, recordedPages });
+const record = (s, page) => ({ ...s, recordedPages: recordWardPage(s, page).recordedPages });
+const recordAll = (s, pages) => pages.reduce((acc, p) => record(acc, p), s);
+
+check("ward: 1..25 opens at 0/25 and is not complete", () => {
+  const s = ward(1, 25);
+  assert.equal(wardBounds(s).total, 25);
+  assert.equal(wardReachedCount(s), 0);
+  assert.equal(wardIsComplete(s), false);
+});
+
+check("ward: recording page 1 moves 0/25 to 1/25 without completing", () => {
+  const r = recordWardPage(ward(1, 25), 1);
+  assert.equal(r.added, 1);
+  assert.equal(r.reached, 1);
+  assert.equal(r.total, 25);
+  assert.equal(r.complete, false);
+});
+
+check("ward: 1..24 is 24/25 and still incomplete", () => {
+  const s = recordAll(ward(1, 25), Array.from({ length: 24 }, (_, i) => i + 1));
+  assert.equal(wardReachedCount(s), 24);
+  assert.equal(wardIsComplete(s), false);
+});
+
+check("ward: the 25th page completes the ward", () => {
+  const s = recordAll(ward(1, 25), Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.equal(wardReachedCount(s), 25);
+  assert.equal(wardIsComplete(s), true);
+});
+
+check("ward: re-recording a page never double-counts", () => {
+  let s = record(ward(1, 25), 5);
+  assert.equal(wardReachedCount(s), 1);
+  const again = recordWardPage(s, 5);
+  assert.equal(again.added, 0);
+  s = record(s, 5);
+  assert.equal(wardReachedCount(s), 1);
+});
+
+check("ward: walking back and forward records each page once", () => {
+  let s = ward(1, 25);
+  for (const p of [1, 2, 3, 2, 1, 2, 3, 4]) s = record(s, p);
+  assert.equal(wardReachedCount(s), 4);
+  assert.deepEqual(s.recordedPages, [1, 2, 3, 4]);
+});
+
+check("ward: out-of-range pages are ignored", () => {
+  let s = record(ward(10, 12), 9);
+  s = record(s, 13);
+  s = record(s, 0);
+  assert.equal(wardReachedCount(s), 0);
+  assert.equal(wardIsComplete(s), false);
+  s = record(s, 10);
+  assert.deepEqual(s.recordedPages, [10]);
+});
+
+check("ward: 50..60 opens at 0/11 and needs all 11 pages", () => {
+  let s = ward(50, 60);
+  assert.equal(wardBounds(s).total, 11);
+  assert.equal(wardReachedCount(s), 0);
+  s = recordAll(s, [50, 51, 52, 53, 54, 55, 56, 57, 58, 59]);
+  assert.equal(wardReachedCount(s), 10);
+  assert.equal(wardIsComplete(s), false);
+  s = record(s, 60);
+  assert.equal(wardIsComplete(s), true);
+});
+
+check("ward: a single-page ward is complete only after that page is confirmed", () => {
+  const s = ward(7, 7);
+  assert.equal(wardBounds(s).total, 1);
+  assert.equal(wardIsComplete(s), false);
+  assert.equal(recordWardPage(s, 7).complete, true);
+  assert.equal(wardIsComplete(record(s, 7)), true);
+});
+
+check("ward: changing the range drops stale pages and starts the new range at 0", () => {
+  const old = recordAll(ward(1, 25), [1, 2, 3, 4, 5]);
+  // Same recorded set applied to a brand-new range: only pages inside it count.
+  const moved = ward(26, 50, old.recordedPages);
+  assert.equal(wardReachedCount(moved), 0);
+  assert.equal(wardIsComplete(moved), false);
+  // Even if the stale set happened to intersect, the new range is what counts.
+  const overlap = ward(3, 10, old.recordedPages);
+  assert.deepEqual(recordedPagesOf(overlap), [3, 4, 5]);
+  assert.equal(wardIsComplete(overlap), false);
+});
+
+check("ward: an inverted range is read as start <= end", () => {
+  const s = ward(25, 1);
+  assert.deepEqual(wardBounds(s), { start: 1, end: 25, total: 25 });
+  assert.equal(wardIsComplete(s), false);
+});
+
+check("ward: sanitize keeps unique in-range integers only", () => {
+  assert.deepEqual(sanitizeRecordedPages([3, 1, 3, 99, 0, "2", 2.5], 1, 5), [1, 2, 3]);
+  assert.deepEqual(sanitizeRecordedPages(null, 1, 5), []);
+});
+
+check("ward: legacy completed session migrates to every page", () => {
+  assert.deepEqual(
+    legacyRecordedPages({ startPage: 1, endPage: 5, highestPageReached: 2, completed: true }),
+    [1, 2, 3, 4, 5],
+  );
+});
+
+check("ward: legacy partial session migrates to the highest page reached", () => {
+  assert.deepEqual(
+    legacyRecordedPages({ startPage: 10, endPage: 20, highestPageReached: 13 }),
+    [10, 11, 12, 13],
+  );
+});
+
+check("ward: a stored completed flag cannot complete an empty recorded set", () => {
+  const s = defaultSession({ startPage: 1, endPage: 25, completed: true, recordedPages: [] });
+  assert.equal(s.recordedPages.length, 0);
+  assert.equal(s.completedPages, 0);
+  assert.equal(s.completed, false);
+});
+
+check("ward: defaultSession derives counters from recordedPages", () => {
+  const s = defaultSession({ startPage: 1, endPage: 25, recordedPages: [1, 2, 3] });
+  assert.equal(s.completedPages, 3);
+  assert.equal(s.completed, false);
+  const done = defaultSession({
+    startPage: 1,
+    endPage: 3,
+    recordedPages: [1, 2, 3],
+  });
+  assert.equal(done.completedPages, 3);
+  assert.equal(done.completed, true);
+});
+
+check("ward: defaultSession with only a legacy completed flag owns the whole range", () => {
+  const s = defaultSession({ startPage: 1, endPage: 4, completed: true, highestPageReached: 4 });
+  assert.deepEqual(s.recordedPages, [1, 2, 3, 4]);
+  assert.equal(s.completed, true);
+});
+
+check("ward: stored session progress survives a reload (recorded set is the truth)", () => {
+  const store = new Map();
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  try {
+    const saved = defaultSession({
+      startPage: 1,
+      endPage: 25,
+      recordedPages: [1, 2, 3],
+      sessionStartTime: "2026-08-10T00:00:00.000Z",
+    });
+    store.set(MUSHAF_SESSION_KEY, JSON.stringify(saved));
+    const loaded = loadSession();
+    assert.equal(loaded.recordedPages.length, 3);
+    assert.equal(loaded.completedPages, 3);
+    assert.equal(loaded.completed, false);
+  } finally {
+    if (previous === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previous;
+  }
+});
+
+check("ward: a stale completed flag in storage is repaired on load", () => {
+  const store = new Map();
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  try {
+    store.set(
+      MUSHAF_SESSION_KEY,
+      JSON.stringify({
+        version: 1,
+        startPage: 1,
+        endPage: 25,
+        sessionStartTime: "2026-08-10T00:00:00.000Z",
+        recordedPages: [1],
+        completed: true,
+        completedPages: 25,
+        highestPageReached: 25,
+      }),
+    );
+    const loaded = loadSession();
+    assert.equal(loaded.completed, false);
+    assert.equal(loaded.completedPages, 1);
+    assert.deepEqual(loaded.recordedPages, [1]);
+  } finally {
+    if (previous === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previous;
+  }
+});
+
+check("ward: a legacy session without recordedPages migrates on load", () => {
+  const store = new Map();
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  try {
+    store.set(
+      MUSHAF_SESSION_KEY,
+      JSON.stringify({
+        version: 1,
+        startPage: 10,
+        endPage: 20,
+        sessionStartTime: "2026-08-10T00:00:00.000Z",
+        highestPageReached: 13,
+      }),
+    );
+    const loaded = loadSession();
+    assert.deepEqual(loaded.recordedPages, [10, 11, 12, 13]);
+    assert.equal(loaded.completedPages, 4);
+    assert.equal(loaded.completed, false);
+  } finally {
+    if (previous === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previous;
+  }
 });
 
 // ---- runner ----

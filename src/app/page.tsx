@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { TadabburSheet } from "@/components/TadabburSheet";
 import { HistoryView } from "@/components/views/History";
@@ -19,12 +19,14 @@ import { AdhkarView } from "@/components/views/adhkar/AdhkarView";
 import { NiyyahView } from "@/components/views/NiyyahView";
 import { OccasionsView } from "@/components/views/OccasionsView";
 import { OnboardingOverlay } from "@/components/views/Onboarding";
+import { SplashScreen } from "@/components/SplashScreen";
 import { AudioPlayerProvider } from "@/components/providers/AudioProvider";
 import { PrayerProvider } from "@/components/providers/PrayerProvider";
 import { useQuran } from "@/hooks/useQuran";
 import { useWardData } from "@/hooks/useWardData";
 import { useLocale } from "@/lib/locale";
 import { loadOnboarding } from "@/lib/onboarding";
+import { getLaunchScreen, onLaunchRequest } from "@/lib/widgetNavigation";
 import type { FullViewId, TabId } from "@/lib/types";
 import type { ReaderMode } from "@/components/SegmentedControl";
 
@@ -48,20 +50,42 @@ export default function Page() {
      the seen-flag itself, so dismissing it can never reopen it. */
   const [showOnboarding, setShowOnboarding] = useState(() => !loadOnboarding().seen);
 
+  /* Home-screen widget deep link: a widget tap opens MainActivity with a
+     `wardi_open` extra; open the prayer screen immediately. */
+  useEffect(() => {
+    let cancelled = false;
+    void getLaunchScreen().then((screen) => {
+      if (!cancelled && screen === "prayer") setView("prayer");
+    });
+    let remove: (() => void) | null = null;
+    void onLaunchRequest(() => setView("prayer")).then((handle) => {
+      if (handle) remove = handle.remove;
+    });
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, []);
+
   if (!data.loaded) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg text-ink">
-        <span className="animate-glow-pulse flex h-20 w-20 items-center justify-center rounded-[26px] bg-gold text-3xl font-black text-primary-deep shadow-lg shadow-gold/25">
-          و
-        </span>
-        <p className="text-lg font-black">{t("app.name")}</p>
-        <p className="animate-pulse text-xs font-bold text-muted">{t("app.loading")}</p>
-      </div>
+      <>
+        <SplashScreen />
+        <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg text-ink">
+          <span className="animate-glow-pulse flex h-20 w-20 items-center justify-center rounded-[26px] bg-gold text-3xl font-black text-primary-deep shadow-lg shadow-gold/25">
+            و
+          </span>
+          <p className="text-lg font-black">{t("app.name")}</p>
+          <p className="animate-pulse text-xs font-bold text-muted">{t("app.loading")}</p>
+        </div>
+      </>
     );
   }
 
   return (
-    <PrayerProvider>
+    <>
+      <SplashScreen />
+      <PrayerProvider>
       <AudioPlayerProvider>
       {(() => {
         if (view === "reading") {
@@ -164,5 +188,6 @@ export default function Page() {
       })()}
     </AudioPlayerProvider>
     </PrayerProvider>
+    </>
   );
 }

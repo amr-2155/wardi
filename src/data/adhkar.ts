@@ -34,7 +34,35 @@ export type DhikrItem = {
   note?: string;
   /** Display title for standalone surah cards (mushaf-style header). */
   title?: string;
+  /**
+   * Where this card's words sit in the Quran, in reading order — the exact
+   * verse range a reciter recording must cover. Only Quran-type cards carry
+   * it.
+   */
+  audio?: DhikrAyahRef[];
+  /**
+   * The id of this dhikr's recording in Hisn al-Muslim (حصن المسلم), whose
+   * per-dhikr recitation is read by a real reciter credited inside the file's
+   * own ID3 tags (see `src/lib/audio/hisnmuslim.ts`). Only hadith cards carry
+   * it, and only after the recording's words were checked against the card's:
+   * `audioNote` below discloses any wording the recording adds or changes. A
+   * card with no verified recording carries no id, shows no play button, and
+   * is reported as unavailable rather than voiced by a machine.
+   */
+  hisnId?: number;
+  /**
+   * Set only when the recording does NOT read exactly what the card shows —
+   * the card is an excerpt of a longer verse (the player reads the whole
+   * verse), or the Hisn recording follows the book's wording or adds a
+   * neighbouring phrase. The screen says so, rather than letting the reader
+   * wonder about extra or different words. Cards whose recording matches word
+   * for word carry no note.
+   */
+  audioNote?: string;
 };
+
+/** One verse of the Quran, as `surah:ayah`. */
+export type DhikrAyahRef = { surah: number; ayah: number };
 
 export const DHIKR_CATEGORIES: DhikrCategory[] = [
   { id: "morning", titleAr: "أذكار الصباح", titleEn: "Morning Adhkar" },
@@ -61,6 +89,16 @@ export const SURAH_FALAQ =
 export const SURAH_NAS =
   "قُلْ أَعُوذُ بِرَبِّ النَّاسِ (1) مَلِكِ النَّاسِ (2) إِلَٰهِ النَّاسِ (3) مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ (4) الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ (5) مِنَ الْجِنَّةِ وَالنَّاسِ (6)";
 
+/* The last two verses of Al-Baqarah. Recited at night: «من قرأ بالآيتين من آخر
+   سورة البقرة في ليلة كفتاه» (البخاري ومسلم). Verse markers stay in the same
+   "(n)" shape the whole dataset uses, because the mushaf renderer reads them. */
+export const BAQARAH_END =
+  "آمَنَ الرَّسُولُ بِمَا أُنْزِلَ إِلَيْهِ مِنْ رَبِّهِ وَالْمُؤْمِنُونَ ۚ كُلٌّ آمَنَ بِاللَّهِ وَمَلَائِكَتِهِ وَكُتُبِهِ وَرُسُلِهِ لَا نُفَرِّقُ بَيْنَ أَحَدٍ مِنْ رُسُلِهِ ۚ وَقَالُوا سَمِعْنَا وَأَطَعْنَا ۖ غُفْرَانَكَ رَبَّنَا وَإِلَيْكَ الْمَصِيرُ (285) لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا ۚ لَهَا مَا كَسَبَتْ وَعَلَيْهَا مَا اكْتَسَبَتْ ۗ رَبَّنَا لَا تُؤَاخِذْنَا إِنْ نَسِينَا أَوْ أَخْطَأْنَا ۚ رَبَّنَا وَلَا تَحْمِلْ عَلَيْنَا إِصْرًا كَمَا حَمَلْتَهُ عَلَى الَّذِينَ مِنْ قَبْلِنَا ۚ رَبَّنَا وَلَا تُحَمِّلْنَا مَا لَا طَاقَةَ لَنَا بِهِ ۖ وَاعْفُ عَنَّا وَاغْفِرْ لَنَا وَارْحَمْنَا ۚ أَنْتَ مَوْلَانَا فَانْصُرْنَا عَلَى الْقَوْمِ الْكَافِرِينَ (286)";
+
+/* Dua of Yunus عليه السلام in the whale — Qur'an 21:87. */
+export const DUA_YUNUS =
+  "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ (87)";
+
 export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Morning & Evening ── */
   {
@@ -70,6 +108,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     type: "quran",
     text: AYAT_AL_KURSI,
     source: "القرآن الكريم — سورة البقرة (2:255)",
+    audio: [{ surah: 2, ayah: 255 }],
     authenticity: "sahih",
     note: "النبي ﷺ: «من قالها حين يصبح أُجير من الجن حتى يمسي، ومن قالها حين يمسي أُجير من الجن حتى يصبح» (رواه النسائي وحسنه الألباني).",
   },
@@ -81,6 +120,12 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الإخلاص",
     text: SURAH_IKHLAS,
     source: "القرآن الكريم — سورة الإخلاص (112)",
+    audio: [
+      { surah: 112, ayah: 1 },
+      { surah: 112, ayah: 2 },
+      { surah: 112, ayah: 3 },
+      { surah: 112, ayah: 4 },
+    ],
     authenticity: "sahih",
     count: 3,
     note: "تُقرأ ثلاثًا مع المعوذتين؛ تكفي من كل شيء (رواه أبو داود والترمذي وصححه الألباني).",
@@ -93,6 +138,13 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الفلق",
     text: SURAH_FALAQ,
     source: "القرآن الكريم — سورة الفلق (113)",
+    audio: [
+      { surah: 113, ayah: 1 },
+      { surah: 113, ayah: 2 },
+      { surah: 113, ayah: 3 },
+      { surah: 113, ayah: 4 },
+      { surah: 113, ayah: 5 },
+    ],
     authenticity: "sahih",
     count: 3,
     note: "تُقرأ ثلاثًا مع أختيها صباحًا ومساءً.",
@@ -105,12 +157,22 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الناس",
     text: SURAH_NAS,
     source: "القرآن الكريم — سورة الناس (114)",
+    audio: [
+      { surah: 114, ayah: 1 },
+      { surah: 114, ayah: 2 },
+      { surah: 114, ayah: 3 },
+      { surah: 114, ayah: 4 },
+      { surah: 114, ayah: 5 },
+      { surah: 114, ayah: 6 },
+    ],
     authenticity: "sahih",
     count: 3,
     note: "تُقرأ ثلاثًا مع أختيها صباحًا ومساءً.",
   },
   {
     id: "day-asbahna",
+    hisnId: 77,
+    audioNote: "التسجيل بصيغة حصن المسلم نفسها، وقد يخالف البطاقة في لفظ «هذه الليلة/هذا اليوم».",
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -120,6 +182,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-amsayna",
+    hisnId: 77,
+    audioNote: "التسجيل بصيغة الصباح («أصبحنا»)، والبطاقة بصيغة المساء.",
     category: "evening",
     times: "evening",
     type: "hadith",
@@ -129,6 +193,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-bika-asbahna",
+    hisnId: 78,
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -138,6 +203,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-bika-amsayna",
+    hisnId: 78,
+    audioNote: "التسجيل بصيغة الصباح وينتهي بـ«وإليك النشور».",
     category: "evening",
     times: "evening",
     type: "hadith",
@@ -147,6 +214,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-sayyid-istighfar",
+    hisnId: 79,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -157,6 +225,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-allahumma-aafini",
+    hisnId: 82,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -166,29 +235,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     count: 3,
   },
   {
-    id: "day-hasbiyallah",
-    category: "morning",
-    times: "both",
-    type: "quran",
-    text: "حَسْبِيَ اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ، عَلَيْهِ تَوَكَّلْتُ، وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ.",
-    source: "القرآن الكريم — سورة التوبة (9:129)",
-    authenticity: "hasan",
-    count: 7,
-    note: "يُستحب سَبْعَ مرات؛ كما جاء أن من قالها حين يصبح وحين يمسي كفاه الله ما أهمّه (رواه أبو داود وحسّنه جمع من أهل العلم).",
-  },
-  {
-    id: "day-lailaha-x10",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
-    source: "رواه أبو داود والنسائي — صححه الألباني",
-    authenticity: "sahih",
-    count: 10,
-    note: "من قالها عشر مرات حين يصبح كتب الله له عشر حسنات ومحا عنه عشر سيئات ورفع له عشر درجات.",
-  },
-  {
     id: "day-ash-hiduka",
+    hisnId: 80,
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -200,6 +248,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-amsaytu-ashhiduka",
+    hisnId: 80,
+    audioNote: "التسجيل بصيغة الصباح («أصبحتُ»).",
     category: "evening",
     times: "evening",
     type: "hadith",
@@ -210,17 +260,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "أربع مرات؛ من قالهن حين يمسي أعتق الله رقبته من النار.",
   },
   {
-    id: "day-awdhu-kalimat",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ.",
-    source: "رواه مسلم",
-    authenticity: "sahih",
-    note: "قال ﷺ: «من قالها حين يمسي لم تضرّه ليلته عقرب». تُقال في الصباح أيضًا.",
-  },
-  {
     id: "day-ma-asbaha",
+    hisnId: 81,
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -231,6 +272,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-ma-amsa",
+    hisnId: 81,
+    audioNote: "التسجيل بصيغة الصباح («أصبحَ»).",
     category: "evening",
     times: "evening",
     type: "hadith",
@@ -240,6 +283,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "من قالها حين يمسي فقد أدّى شكر ليلته.",
   },  {
     id: "day-afwa-afiya",
+    hisnId: 84,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -249,6 +293,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-bismillah-amn",
+    hisnId: 86,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -259,18 +304,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "ثلاث مرات؛ من قالها لم تضرّه فجأة بلاء حتى يصبح.",
   },
   {
-    id: "day-subhanallah100",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ.",
-    source: "رواه مسلم",
-    authenticity: "sahih",
-    count: 100,
-    note: "من قالها حين يصبح وحين يمسي مئة مرة لم يأتِ أحدٌ يوم القيامة بأفضلَ مما جاء به إلا من قال مثلها أو زاد.",
-  },
-  {
     id: "day-subhan-adad",
+    hisnId: 94,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -283,6 +318,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
 
   {
     id: "day-raditu",
+    hisnId: 87,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -297,6 +333,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
        with the same wording. One entry survives, at the stronger of the two
        gradings, and it keeps the note the weaker copy carried. */
     id: "day-ya-hayyu",
+    hisnId: 88,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -307,6 +344,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-fitrah-asbahna",
+    hisnId: 90,
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -316,6 +354,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-fitrah-amsayna",
+    hisnId: 90,
+    audioNote: "التسجيل بصيغة الصباح («أصبحنا»).",
     category: "evening",
     times: "evening",
     type: "hadith",
@@ -325,6 +365,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-fatir",
+    hisnId: 85,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -335,6 +376,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-ilman-nafian",
+    hisnId: 95,
     category: "morning",
     times: "morning",
     type: "hadith",
@@ -344,22 +386,12 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "كان ﷺ يقولها إذا صلى الصبح حين يسلّم.",
   },
   {
-    id: "day-astaghfiru-100",
-    category: "morning",
-    times: "both",
-    type: "hadith",
-    text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ.",
-    source: "رواه البخاري ومسلم",
-    authenticity: "muttafaq",
-    count: 100,
-    note: "كان ﷺ يستغفر في اليوم مئة مرة.",
-  },
-  {
     /* Duplicate of `day-sallim-ala-muhammad`, which graded the same words as
        sahih on the strength of a virtue narration (رواه مسلم) rather than a
        isnad for this wording. Kept here at the grade its own wording carries —
        الطبراني, حسنه الألباني — so the card never claims more than the source. */
     id: "day-salli-10",
+    hisnId: 98,
     category: "morning",
     times: "both",
     type: "hadith",
@@ -370,9 +402,110 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     note: "عشر مرات حين يصبح وعشرًا حين يمسي؛ من صلى عليّ مرة صلى الله عليه بها عشرًا (رواه مسلم).",
   },
 
+  /* ── Short repeated adhkar, kept together ──
+     These are the dhikr a reader repeats many times in one sitting. Listing
+     them back to back (instead of scattering them through the long duas) is
+     what makes them easy to memorise: the wording barely changes, only the
+     count does. Order follows the request: tasbih, tahlil, istighfar, then the
+     two refuge/trust adhkar, then the dua of Yunus right after "حسبي الله". */
+  {
+    id: "day-subhanallah100",
+    hisnId: 91,
+    category: "morning",
+    times: "both",
+    type: "hadith",
+    text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ.",
+    source: "رواه مسلم",
+    authenticity: "sahih",
+    count: 100,
+    note: "من قالها حين يصبح وحين يمسي مئة مرة لم يأتِ أحدٌ يوم القيامة بأفضلَ مما جاء به إلا من قال مثلها أو زاد.",
+  },
+  {
+    id: "day-lailaha-x10",
+    hisnId: 93,
+    category: "morning",
+    times: "both",
+    type: "hadith",
+    text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
+    source: "رواه أبو داود والنسائي — صححه الألباني",
+    authenticity: "sahih",
+    count: 10,
+    note: "من قالها عشر مرات حين يصبح كتب الله له عشر حسنات ومحا عنه عشر سيئات ورفع له عشر درجات.",
+  },
+  {
+    id: "day-astaghfiru-100",
+    hisnId: 96,
+    category: "morning",
+    times: "both",
+    type: "hadith",
+    text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ.",
+    source: "رواه البخاري ومسلم",
+    authenticity: "muttafaq",
+    count: 100,
+    note: "كان ﷺ يستغفر في اليوم مئة مرة.",
+  },
+  {
+    id: "day-awdhu-kalimat",
+    hisnId: 97,
+    category: "morning",
+    times: "both",
+    type: "hadith",
+    text: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ.",
+    source: "رواه مسلم",
+    authenticity: "sahih",
+    count: 3,
+    note: "قال ﷺ: «من قالها حين يمسي لم تضرّه ليلته عقرب». تُقال في الصباح أيضًا، وتُكرَّر ثلاثًا ليسهل حفظها.",
+  },
+  {
+    id: "day-hasbiyallah",
+    category: "morning",
+    times: "both",
+    type: "quran",
+    text: "حَسْبِيَ اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ، عَلَيْهِ تَوَكَّلْتُ، وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ.",
+    source: "القرآن الكريم — سورة التوبة (9:129)",
+    audio: [{ surah: 9, ayah: 129 }],
+    audioNote:
+      "التسجيل يقرأ الآية كاملة، ويبدأ قبل الذكر بقوله تعالى: ﴿فَإِن تَوَلَّوْا فَقُلْ﴾.",
+    authenticity: "hasan",
+    count: 7,
+    note: "يُستحب سَبْعَ مرات؛ كما جاء أن من قالها حين يصبح وحين يمسي كفاه الله ما أهمّه (رواه أبو داود وحسّنه جمع من أهل العلم).",
+  },
+  {
+    /* Immediately after "حسبي الله" so the two are memorised as one pair. */
+    id: "day-dua-yunus",
+    category: "morning",
+    times: "both",
+    type: "quran",
+    text: DUA_YUNUS,
+    source: "القرآن الكريم — سورة الأنبياء (21:87)",
+    audio: [{ surah: 21, ayah: 87 }],
+    audioNote: "التسجيل يقرأ الآية كاملة من أولها، ودعاء يونس في ختامها.",
+    authenticity: "sahih",
+    count: 3,
+    note: "دعاء يونس عليه السلام؛ ما دعا به مسلم في شيء إلا استجاب الله له.",
+  },
+
+  /* ── Night: the last two verses of Al-Baqarah ── */
+  {
+    id: "evening-aman-arrasul",
+    category: "evening",
+    times: "evening",
+    type: "quran",
+    title: "خواتيم سورة البقرة",
+    text: BAQARAH_END,
+    source: "القرآن الكريم — سورة البقرة (2:285-286)",
+    audio: [
+      { surah: 2, ayah: 285 },
+      { surah: 2, ayah: 286 },
+    ],
+    authenticity: "muttafaq",
+    note: "«من قرأ بالآيتين من آخر سورة البقرة في ليلة كفتاه» (رواه البخاري ومسلم).",
+  },
+
   /* ── Sleep ── */
   {
     id: "sleep-bismika",
+    hisnId: 105,
     category: "sleep",
     type: "hadith",
     text: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا.",
@@ -385,6 +518,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     type: "quran",
     text: AYAT_AL_KURSI,
     source: "القرآن الكريم — سورة البقرة (2:255)",
+    audio: [{ surah: 2, ayah: 255 }],
     authenticity: "sahih",
     note: "من قرأها عند النوم لم يزل عليه من الله حافظ ولا يقربه شيطان حتى يصبح (رواه البخاري).",
   },
@@ -395,6 +529,12 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الإخلاص",
     text: SURAH_IKHLAS,
     source: "القرآن الكريم — سورة الإخلاص (112)",
+    audio: [
+      { surah: 112, ayah: 1 },
+      { surah: 112, ayah: 2 },
+      { surah: 112, ayah: 3 },
+      { surah: 112, ayah: 4 },
+    ],
     authenticity: "muttafaq",
     count: 3,
     note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
@@ -406,6 +546,13 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الفلق",
     text: SURAH_FALAQ,
     source: "القرآن الكريم — سورة الفلق (113)",
+    audio: [
+      { surah: 113, ayah: 1 },
+      { surah: 113, ayah: 2 },
+      { surah: 113, ayah: 3 },
+      { surah: 113, ayah: 4 },
+      { surah: 113, ayah: 5 },
+    ],
     authenticity: "muttafaq",
     count: 3,
     note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
@@ -417,12 +564,21 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     title: "سورة الناس",
     text: SURAH_NAS,
     source: "القرآن الكريم — سورة الناس (114)",
+    audio: [
+      { surah: 114, ayah: 1 },
+      { surah: 114, ayah: 2 },
+      { surah: 114, ayah: 3 },
+      { surah: 114, ayah: 4 },
+      { surah: 114, ayah: 5 },
+      { surah: 114, ayah: 6 },
+    ],
     authenticity: "muttafaq",
     count: 3,
     note: "كان ﷺ إذا أوى إلى فراشه نفث في كفيه بالمعوذات ومسح بهما جسده.",
   },
   {
     id: "sleep-aslamtu",
+    hisnId: 111,
     category: "sleep",
     type: "hadith",
     text: "اللَّهُمَّ أَسْلَمْتُ نَفْسِي إِلَيْكَ، وَوَجَّهْتُ وَجْهِي إِلَيْكَ، وَفَوَّضْتُ أَمْرِي إِلَيْكَ، وَأَلْجَأْتُ ظَهْرِي إِلَيْكَ، رَغْبَةً وَرَهْبَةً إِلَيْكَ، لَا مَلْجَأَ وَلَا مَنْجَا مِنْكَ إِلَّا إِلَيْكَ، آمَنْتُ بِكِتَابِكَ الَّذِي أَنْزَلْتَ، وَبِنَبِيِّكَ الَّذِي أَرْسَلْتَ.",
@@ -433,6 +589,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Waking up ── */
   {
     id: "wake-hamdulillah",
+    hisnId: 1,
     category: "wakeup",
     type: "hadith",
     text: "الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ.",
@@ -441,6 +598,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "wake-rada",
+    hisnId: 3,
     category: "wakeup",
     type: "hadith",
     text: "الْحَمْدُ لِلَّهِ الَّذِي رَدَّ عَلَيَّ رُوحِي، وَعَافَانِي فِي جَسَدِي، وَأَذِنَ لِي بِذِكْرِهِ.",
@@ -451,6 +609,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── After Prayer ── */
   {
     id: "prayer-istighfar",
+    hisnId: 66,
     category: "after-prayer",
     type: "hadith",
     text: "أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ، اللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ، تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ.",
@@ -464,11 +623,14 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     type: "quran",
     text: AYAT_AL_KURSI,
     source: "القرآن الكريم — سورة البقرة (2:255)",
+    audio: [{ surah: 2, ayah: 255 }],
     authenticity: "sahih",
     note: "من قرأها دبر كل صلاة مكتوبة لم يمنعه من دخول الجنة إلا أن يموت (رواه النسائي وصححه الألباني).",
   },
   {
     id: "prayer-tasbih",
+    hisnId: 69,
+    audioNote: "التسجيل يقرأ التسبيح ثم ختام المائة، دون عدّ الأذكار.",
     category: "after-prayer",
     type: "hadith",
     text: "سُبْحَانَ اللَّهِ (33)، الْحَمْدُ لِلَّهِ (33)، اللَّهُ أَكْبَرُ (34)، ثُمَّ يُتِمُّ الْمِائَةَ: لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
@@ -495,6 +657,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "day-innaka-asafat",
+    hisnId: 61,
+    audioNote: "التسجيل يقول «إني أسألك… وأعوذ بك».",
     category: "evening",
     times: "both",
     type: "hadith",
@@ -506,6 +670,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Entering & Leaving Home ── */
   {
     id: "home-enter",
+    hisnId: 18,
+    audioNote: "التسجيل يزيد في آخره: «ثم ليُسلّم على أهله».",
     category: "home",
     type: "hadith",
     text: "بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَى اللَّهِ رَبِّنَا تَوَكَّلْنَا.",
@@ -514,6 +680,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "home-exit",
+    hisnId: 16,
     category: "home",
     type: "hadith",
     text: "بِسْمِ اللَّهِ، تَوَكَّلْتُ عَلَى اللَّهِ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ.",
@@ -525,6 +692,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Entering & Leaving the Mosque ── */
   {
     id: "mosque-enter",
+    hisnId: 20,
+    audioNote: "التسجيل يبدأ بالاستعاذة ثم «اللهم افتح لي أبواب رحمتك».",
     category: "mosque",
     type: "hadith",
     text: "بِسْمِ اللَّهِ، اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ.",
@@ -533,6 +702,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "mosque-enter-istiaadha",
+    hisnId: 20,
+    audioNote: "التسجيل يزيد بعده «اللهم افتح لي أبواب رحمتك».",
     category: "mosque",
     type: "hadith",
     text: "أَعُوذُ بِاللَّهِ الْعَظِيمِ، وَبِوَجْهِهِ الْكَرِيمِ، وَسُلْطَانِهِ الْقَدِيمِ، مِنَ الشَّيْطَانِ الرَّجِيمِ.",
@@ -542,6 +713,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "mosque-exit",
+    hisnId: 21,
+    audioNote: "التسجيل يقرأ الدعاء كاملًا حتى «اللهم إني أسألك من فضلك».",
     category: "mosque",
     type: "hadith",
     text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ.",
@@ -552,6 +725,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Eating & Drinking ── */
   {
     id: "food-bismillah",
+    hisnId: 178,
+    audioNote: "التسجيل يقرأ الحديث: «إذا أكل أحدكم طعامًا فليقل بسم الله…».",
     category: "food",
     type: "hadith",
     text: "بِسْمِ اللَّهِ.",
@@ -561,6 +736,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "food-after-hamd",
+    hisnId: 180,
     category: "food",
     type: "hadith",
     text: "الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنِي هَذَا وَرَزَقَنِيهِ مِنْ غَيْرِ حَوْلٍ مِنِّي وَلَا قُوَّةٍ.",
@@ -570,6 +746,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "food-milk",
+    hisnId: 179,
+    audioNote: "التسجيل يقرأ دعاء الطعام كاملًا وفيه «ومن سقاه الله لبنًا…».",
     category: "food",
     type: "hadith",
     text: "اللَّهُمَّ بَارِكْ لَنَا فِيهِ وَزِدْنَا مِنْهُ.",
@@ -581,6 +759,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── Travel ── */
   {
     id: "travel-dua",
+    hisnId: 207,
+    audioNote: "التسجيل يزيد في آخره: «وإذا رجع قالهنّ وزاد فيهنّ: آيبون…».",
     category: "travel",
     type: "hadith",
     text: "اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ، وَإِنَّا إِلَى رَبِّنَا لَمُنْقَلِبُونَ، اللَّهُمَّ إِنَّا نَسْأَلُكَ فِي سَفَرِنَا هَذَا الْبِرَّ وَالتَّقْوَى، وَمِنَ الْعَمَلِ مَا تَرْضَى، اللَّهُمَّ هَوِّنْ عَلَيْنَا سَفَرَنَا هَذَا وَاطْوِ عَنَّا بُعْدَهُ، اللَّهُمَّ أَنْتَ الصَّاحِبُ فِي السَّفَرِ وَالْخَلِيفَةُ فِي الْأَهْلِ، اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ وَعْثَاءِ السَّفَرِ، وَكَآبَةِ الْمَنْظَرِ، وَسُوءِ الْمُنْقَلَبِ فِي الْمَالِ وَالْأَهْلِ.",
@@ -590,6 +770,8 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   },
   {
     id: "travel-return",
+    hisnId: 217,
+    audioNote: "التسجيل يبدأ بـ«يكبّر على كل شرف ثلاث تكبيرات…».",
     category: "travel",
     type: "hadith",
     text: "آيِبُونَ تَائِبُونَ عَابِدُونَ لِرَبِّنَا حَامِدُونَ.",
@@ -601,6 +783,7 @@ export const DHIKR_ITEMS: DhikrItem[] = [
   /* ── General ── */
   {
     id: "general-subhanallah100",
+    hisnId: 91,
     category: "general",
     type: "hadith",
     text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ.",
@@ -615,10 +798,14 @@ export const DHIKR_ITEMS: DhikrItem[] = [
     type: "quran",
     text: "حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ.",
     source: "القرآن الكريم — سورة آل عمران (3:173)",
+    audio: [{ surah: 3, ayah: 173 }],
+    audioNote: "التسجيل يقرأ الآية كاملة من أولها، والذكر في ختامها.",
     authenticity: "sahih",
   },
   {
     id: "general-lahawla",
+    hisnId: 265,
+    audioNote: "التسجيل يقرأ الحديث: «الباقيات الصالحات: سبحان الله والحمد لله…».",
     category: "general",
     type: "hadith",
     text: "لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ.",

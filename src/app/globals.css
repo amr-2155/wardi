@@ -232,6 +232,11 @@ input[type=number]{appearance:textfield}
 
 .animate-dhikr-leave{animation:.35s cubic-bezier(.22,1,.36,1) both dhikr-leave}
 
+/* Reverse variant: going back a page leaves through the right edge, so the
+   motion matches the direction the reader is travelling. */
+@keyframes dhikr-leave-rev{0%{opacity:1;transform:none}to{opacity:0;transform:rotateY(14deg)translate(-16px)scale(.98)}}
+.animate-dhikr-leave-rev{animation:.35s cubic-bezier(.22,1,.36,1) both dhikr-leave-rev}
+
 .animate-pulse-subtle{animation:2s ease-in-out infinite pulse-subtle}
 
 @keyframes sky-drift{0%{transform:translateX(-14px)}50%{transform:translateX(14px)}to{transform:translateX(-14px)}}
@@ -278,6 +283,8 @@ input[type=number]{appearance:textfield}
 @keyframes hero-drift{0%,100%{transform:translate(0,0)scale(1)}50%{transform:translate(20px,-16px)scale(1.14)}}
 
 @keyframes shimmer-sweep{0%{transform:translateX(120%)}60%,100%{transform:translateX(-160%)}}
+
+@keyframes splash-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
 .animate-check-pop{animation:.4s cubic-bezier(.34,1.56,.64,1) both check-pop}
 
@@ -346,6 +353,23 @@ input[type=number]{appearance:textfield}
   -webkit-backdrop-filter:blur(16px) saturate(1.05);
   backdrop-filter:blur(16px) saturate(1.05);
   box-shadow:0 16px 40px -30px color-mix(in oklab, var(--mink) 60%, transparent);
+}
+
+/* Midnight is one uninterrupted black sheet: the header, the footer and the
+   safe-area bands above and below them are the same black as the page, not a
+   lighter slab pasted over it. No blur is needed when the surface beneath is
+   already the same colour, and no hairline is drawn across it. */
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-bar-overlay{
+  background:#000;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  box-shadow:none;
+}
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-bar-top,
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-bar-bottom{border-color:transparent}
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-bar-btn{
+  background:#ffffff0f;
+  border-color:#ffffff1f;
 }
 .mushaf-bar-btn{
   color:var(--mink);

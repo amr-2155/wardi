@@ -181,18 +181,32 @@ const RECITER_MAP: Record<
   { name: string; englishName: string; style: AudioReciter["style"] }
 > = {
   1: { name: "عبدالباري (مجوّد)", englishName: "AbdulBaset AbdulSamad", style: "mujawwad" },
-  2: { name: "عبدالباري (مورتل)", englishName: "AbdulBaset AbdulSamad", style: "murattal" },
-  3: { name: "عبد الرحمن الصدائس", englishName: "Abdur-Rahman as-Sudais", style: "normal" },
+  2: { name: "عبدالباري (مرتّل)", englishName: "AbdulBaset AbdulSamad", style: "murattal" },
+  3: { name: "عبد الرحمن السديس", englishName: "Abdur-Rahman as-Sudais", style: "normal" },
   4: { name: "أبو بكر الشاطري", englishName: "Abu Bakr al-Shatri", style: "normal" },
   5: { name: "هاني الرفاعي", englishName: "Hani ar-Rifai", style: "normal" },
   6: { name: "محمود خليل الحصري (معلم)", englishName: "Mahmoud Khalil Al-Husary", style: "normal" },
   7: { name: "مشاري راشد العفاسي", englishName: "Mishari Rashid al-Afasy", style: "normal" },
-  8: { name: "محمد صديق المنشوي (مجوّد)", englishName: "Mohamed Siddiq al-Minshawi", style: "mujawwad" },
-  9: { name: "محمد صديق المنشوي (مورتل)", englishName: "Mohamed Siddiq al-Minshawi", style: "murattal" },
-  10: { name: "سعود الأشمري", englishName: "Sa'ud ash-Shuraym", style: "normal" },
-  11: { name: "محمد التبويعي", englishName: "Mohamed al-Tablawi", style: "normal" },
+  8: { name: "محمد صديق المنشاوي (مجوّد)", englishName: "Mohamed Siddiq al-Minshawi", style: "mujawwad" },
+  9: { name: "محمد صديق المنشاوي (مرتّل)", englishName: "Mohamed Siddiq al-Minshawi", style: "murattal" },
+  10: { name: "سعود الشريم", englishName: "Sa'ud ash-Shuraym", style: "normal" },
+  11: { name: "محمد الطبلاوي", englishName: "Mohamed al-Tablawi", style: "normal" },
   12: { name: "محمود خليل الحصري", englishName: "Mahmoud Khalil Al-Husary", style: "normal" },
 };
+
+/**
+ * Look one reciter up by Quran.com id.
+ *
+ * Exported so the adhkar screen can describe a reciter without keeping a
+ * second copy of the names: the id in the audio URL and the name on screen
+ * then come from the same row, and cannot drift apart.
+ */
+export function getReciterInfo(
+  id: number | string
+): { name: string; englishName: string; style: AudioReciter["style"] } | null {
+  const info = RECITER_MAP[Number(id)];
+  return info ? { ...info } : null;
+}
 
 const RECITERS_CACHE_KEY = "wardi:audio:reciters-v1";
 const RECITERS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

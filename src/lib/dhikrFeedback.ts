@@ -7,12 +7,17 @@
  *
  * This module also owns the feedback contract itself, because two very
  * different screens count dhikr (the recite flow and the card list) and they
- * must not drift into answering the same tap differently. Vibration is the
- * primary channel: it survives a locked screen and a phone held to the ear,
- * which is how a dhikr is actually recited.
+ * must not drift into answering the same tap differently.
+ *
+ * The split is deliberate and comes from how a dhikr is actually recited:
+ * - every repetition gets the soft tick, so counting stays audible without
+ *   looking up from the page;
+ * - only the LAST repetition gets the distinct resolution tone AND the
+ *   vibration. Vibrating on all one hundred would rattle the phone for half a
+ *   minute and wear the motor out for the one pulse that carries meaning.
  */
 
-import { dhikrFinal, dhikrTap } from "./haptics";
+import { dhikrFinal } from "./haptics";
 import { playDhikrFinal, playDhikrTap } from "./tick";
 
 const KEY = "ward:v2:dhikr-feedback:v1";
@@ -58,10 +63,10 @@ export function playCompletionFeedback(prefs: DhikrFeedback): void {
 }
 
 /**
- * One repetition of a counted dhikr. Soft and brief — a hundred repetitions
- * must feel like counting, not like a phone rattling inside a drawer.
+ * One repetition of a counted dhikr. Audible only — soft and brief, so a
+ * hundred repetitions feel like counting rather than like a phone rattling
+ * inside a drawer. The vibration is reserved for the final repetition.
  */
 export function playDhikrTapFeedback(prefs: DhikrFeedback): void {
-  if (prefs.haptic) dhikrTap();
   if (prefs.sound) playDhikrTap();
 }

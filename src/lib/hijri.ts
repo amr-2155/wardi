@@ -33,6 +33,25 @@ export function todayHijri(now = new Date()): HijriDate {
   return partsOf(now);
 }
 
+/**
+ * Hijri date for an arbitrary instant.
+ *
+ * `offsetDays` shifts the Gregorian probe before conversion, which is how a
+ * user corrects a calendar whose month start differs from the printed Umm
+ * al-Qura table by a day (local sighting, a different convention, etc.).
+ * Anchored at local noon so a DST transition can never move the result.
+ */
+export function hijriOf(date: Date, offsetDays = 0): HijriDate {
+  if (!offsetDays) return partsOf(date);
+  const shifted = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + Math.trunc(offsetDays),
+    12
+  );
+  return partsOf(shifted);
+}
+
 /** Localised "12 Ramadan 1447"-style label, honouring the app locale. */
 export function formatHijri(h: HijriDate, locale: string): string {
   // Reconstruct a Gregorian anchor for the same Hijri day so Intl can render

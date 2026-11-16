@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, BookOpen, Database, Download, Palette, Trash2, Upload } from "lucide-react";
+import { BookOpen, Database, Download, Palette, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { PrayerSettingsPanel } from "@/components/PrayerSettingsPanel";
+import { RemindersSettingsPanel } from "@/components/RemindersSettingsPanel";
 import { Card, NumberField, SectionLabel, SegmentControl, Toggle } from "@/components/ui";
 import { useLocale } from "@/lib/locale";
 import { useAccent, type AccentId } from "@/lib/accent";
@@ -237,68 +238,14 @@ export function SettingsView({ data }: { data: WardData }) {
         </Card>
       </div>
 
-      {/* NOTIFICATIONS */}
-      <div className="mt-5">
-        <SectionLabel>{t("settings.notifications")}</SectionLabel>
-        <Card className="p-4">
-          <Toggle
-            checked={data.settings.notificationsEnabled}
-            onChange={(v) => data.updateSetting("notificationsEnabled", v)}
-            label={t("settings.reminder")}
-            description={t("settings.reminderDesc")}
-          />
-          {data.settings.notificationsEnabled && (
-            <div className="mt-4 animate-fade-up border-t border-line pt-4">
-              <label className="block">
-                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold text-muted">
-                  <Bell size={13} /> {t("settings.reminderTime")}
-                </span>
-                <input
-                  type="time"
-                  value={data.settings.reminderTime}
-                  onChange={(e) => data.updateSetting("reminderTime", e.target.value)}
-                  className="w-full rounded-2xl bg-surface-2 px-4 py-3 text-sm font-bold outline-none transition focus:ring-2 focus:ring-primary/40"
-                />
-              </label>
-              {/* Report only what the OS scheduler actually returned. A browser
-                  build genuinely cannot deliver this, and saying otherwise
-                  would be a false promise. */}
-              {data.reminderStatus === "scheduled" && (
-                <p className="mt-2 text-[10px] font-bold text-success">
-                  {t("settings.reminderStatus.scheduled")}
-                </p>
-              )}
-              {data.reminderStatus === "permission-denied" && (
-                <p className="mt-2 text-[10px] font-bold text-danger">
-                  {t("settings.reminderStatus.permissionDenied")}
-                </p>
-              )}
-              {data.reminderStatus === "unsupported" && (
-                <p className="mt-2 text-[10px] font-bold text-muted">
-                  {t("settings.reminderStatus.unsupported")}
-                </p>
-              )}
-              {data.reminderStatus === "error" && (
-                <p className="mt-2 text-[10px] font-bold text-danger">
-                  {t("settings.reminderStatus.error")}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={data.rescheduleReminder}
-                className="mt-3 h-9 w-full rounded-xl bg-surface-2 text-[10px] font-bold transition active:scale-[0.98]"
-              >
-                {t("settings.reminderStatus.reapply")}
-              </button>
-            </div>
-          )}
-        </Card>
-      </div>
-
       {/* PRAYER — mounted here so the persisted calculation method, madhab,
           iqama offset and sound actually have a UI that can change them.
           Without this the whole prayer settings surface was write-only. */}
       <PrayerSettingsPanel />
+
+      {/* REMINDERS — one organised section: ward, prayer, iqama, white days
+          and sounds. Replaces the separate Notifications card. */}
+      <RemindersSettingsPanel data={data} />
 
       {/* DATA */}
       <div className="mt-5">

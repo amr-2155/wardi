@@ -442,7 +442,9 @@ check("G3: the frozen files are not part of this change", () => {
   // auto-scroll dwell; this assertion exists to prove the pin is still
   // declared and still tracked in test-w2.mjs, not to freeze a hash literal.
   assert.ok(
-    /"src\/components\/views\/MushafReader\.tsx":\s*"[0-9A-F]{16}"/.test(read("scripts/test-w2.mjs")),
+    /"src\/components\/views\/MushafReader\.tsx":\s*"[0-9A-F]{16}"/i.test(
+      read("scripts/test-w2.mjs")
+    ),
     "the Mushaf pin must still be declared"
   );
   // topic normalization stays frozen: no normalized topic index was introduced.

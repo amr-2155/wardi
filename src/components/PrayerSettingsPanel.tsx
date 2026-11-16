@@ -1,10 +1,10 @@
 "use client";
 
-import { Bell, MapPin, MonitorSmartphone, Music, Volume2 } from "lucide-react";
+import { MapPin, MonitorSmartphone, Music, Volume2 } from "lucide-react";
 import { Card, NumberField, SectionLabel, SegmentControl, Toggle } from "@/components/ui";
 import { usePrayer } from "@/components/providers/PrayerProvider";
 import { useLocale } from "@/lib/locale";
-import { METHODS, PRAYERS_ADHAN, type AsrJuristic, type CalculationMethodId } from "@/lib/prayer";
+import { METHODS, type AsrJuristic, type CalculationMethodId } from "@/lib/prayer";
 import { ADHAN_SOUNDS } from "@/lib/prayerSettings";
 
 export function PrayerSettingsPanel() {
@@ -15,9 +15,6 @@ export function PrayerSettingsPanel() {
     locationStatus,
     requestLocation,
     testAdhan,
-    testChime,
-    stopPlayback,
-    playing,
   } = usePrayer();
 
   return (
@@ -49,11 +46,15 @@ export function PrayerSettingsPanel() {
                 label={t("settings.latitude")}
                 value={settings.latitude}
                 onChange={(v) => updateSettings({ latitude: v })}
+                min={-90}
+                max={90}
               />
               <LatLngField
                 label={t("settings.longitude")}
                 value={settings.longitude}
                 onChange={(v) => updateSettings({ longitude: v })}
+                min={-180}
+                max={180}
               />
             </div>
           )}
@@ -159,118 +160,6 @@ export function PrayerSettingsPanel() {
           description={t("settings.adhanEnabledDesc")}
         />
       </Card>
-
-      {/* ALERTS */}
-      <SectionLabel>{t("settings.prayerGroup")}</SectionLabel>
-      <Card className="space-y-4 p-4">
-        <Toggle
-          checked={settings.preAdhanReminderEnabled}
-          onChange={(v) => updateSettings({ preAdhanReminderEnabled: v })}
-          label={t("settings.preReminder")}
-          description={t("settings.preReminderDesc")}
-        />
-        {settings.preAdhanReminderEnabled && (
-          <NumberField
-            label={t("settings.preLead")}
-            value={settings.preAdhanLeadMin}
-            onChange={(v) => updateSettings({ preAdhanLeadMin: v })}
-          />
-        )}
-
-        <div className="rounded-2xl bg-surface-2 p-3.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-left text-xs font-bold text-muted">{t("settings.iqamaOffset")}</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => updateSettings({ iqamaOffsetMin: Math.max(0, settings.iqamaOffsetMin - 5) })}
-                className="btn-icon h-8 w-8"
-              >
-                −
-              </button>
-              <span className="w-10 text-center text-sm font-black tabular-nums">
-                {settings.iqamaOffsetMin}
-              </span>
-              <button
-                type="button"
-                onClick={() => updateSettings({ iqamaOffsetMin: Math.min(90, settings.iqamaOffsetMin + 5) })}
-                className="btn-icon h-8 w-8"
-              >
-                +
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <Toggle
-          checked={settings.iqamaReminderEnabled}
-          onChange={(v) => updateSettings({ iqamaReminderEnabled: v })}
-          label={t("settings.iqamaReminder")}
-          description={t("settings.iqamaReminderDesc")}
-        />
-        {settings.iqamaReminderEnabled && (
-          <NumberField
-            label={t("settings.iqamaLead")}
-            value={settings.iqamaReminderLeadMin}
-            onChange={(v) => updateSettings({ iqamaReminderLeadMin: v })}
-          />
-        )}
-
-        <Toggle
-          checked={settings.reminderSoundEnabled}
-          onChange={(v) => updateSettings({ reminderSoundEnabled: v })}
-          label={t("settings.reminderSound")}
-          description={t("settings.reminderSoundDesc")}
-        />
-      </Card>
-
-      {/* SYSTEM NOTIFICATIONS */}
-      <Card className="space-y-3 p-4">
-        <Toggle
-          checked={settings.browserNotifications}
-          onChange={(v) => {
-            updateSettings({ browserNotifications: v });
-            if (v && "Notification" in window && Notification.permission === "default") {
-              void Notification.requestPermission().then((perm) => {
-                if (perm === "granted") updateSettings({ browserNotifications: true });
-                else updateSettings({ browserNotifications: false });
-              });
-            }
-          }}
-          label={t("settings.systemNotifications")}
-          description={t("settings.notificationsDesc")}
-        />
-
-        {/* TEST BUTTONS */}
-        <div className="flex items-center gap-2 border-t border-line pt-3">
-          <button
-            type="button"
-            onClick={() => void testAdhan(PRAYERS_ADHAN[0])}
-            disabled={playing}
-            className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gold text-xs font-black text-primary-deep transition active:scale-[0.98] disabled:opacity-50"
-          >
-            <Volume2 size={14} />
-            {t("settings.testAdhan")}
-          </button>
-          <button
-            type="button"
-            onClick={testChime}
-            className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-2 text-xs font-bold text-muted transition active:scale-[0.98]"
-          >
-            <Bell size={14} />
-            {t("settings.testChime")}
-          </button>
-          {playing && (
-            <button
-              type="button"
-              onClick={stopPlayback}
-              className="flex h-10 items-center justify-center rounded-xl border border-danger/30 bg-danger-soft px-3 text-xs font-black text-danger transition active:scale-[0.98]"
-            >
-              {t("prayer.stopSound")}
-            </button>
-          )}
-        </div>
-      </Card>
     </div>
   );
 }
@@ -284,21 +173,31 @@ function FieldLabel({ icon, label }: { icon?: React.ReactNode; label: string }) 
   );
 }
 
-function LatLngField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function LatLngField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+}) {
+  /* Reuses NumberField so the same "clear the old value, type a new one"
+     fix applies to coordinates too — the hand-rolled input here had the same
+     controlled-value bug. */
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-black uppercase tracking-wider text-muted">{label}</span>
-      <input
-        type="number"
-        step="0.0001"
-        value={Number(value.toFixed(4))}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          if (!Number.isNaN(v)) onChange(v);
-        }}
-        dir="ltr"
-        className="w-full rounded-xl bg-surface px-3 py-2.5 text-right text-sm font-bold outline-none transition focus:ring-2 focus:ring-primary/40"
-      />
-    </label>
+    <NumberField
+      label={label}
+      value={value}
+      onChange={onChange}
+      min={min}
+      max={max}
+      step={0.0001}
+      decimals={4}
+    />
   );
 }

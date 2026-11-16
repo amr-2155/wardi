@@ -1,36 +1,34 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Mic, MicOff, Volume2, VolumeX, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TouchEvent as ReactTouchEvent } from "react";
 import { Card } from "@/components/ui";
 import { ProgressRing } from "@/components/ProgressRing";
 import type { DhikrItem } from "@/data/adhkar";
 import { loadDhikrFeedback, playCompletionFeedback, playDhikrTapFeedback } from "@/lib/dhikrFeedback";
 import { useLocale } from "@/lib/locale";
-import { getDhikrVoices, isTtsSupported, loadSelectedVoiceName, saveSelectedVoiceName, speakDhikr, stopDhikrSpeech } from "@/lib/dhikrTts";
-import type { DhikrVoice } from "@/lib/dhikrTts";
-import { useVoiceDhikr, isVoiceRecognitionSupported } from "@/hooks/useVoiceDhikr";
+import { stopAdhkarAudio } from "@/lib/adhkarAudio";
+import { resolveSwipeNav } from "@/lib/swipeNav";
+import { DhikrAudio } from "@/components/views/adhkar/DhikrAudio";
+import { VersesMushaf } from "@/components/views/adhkar/VersesMushaf";
 
-/* Helper: parse verse markers like "(1)" into verse number + text. Used by
-   VersesMushaf for mushaf-style rendering of quran-type dhikr items. */
-function parseVerses(text: string): { num: number | null; text: string }[] {
-  const result: { num: number | null; text: string }[] = [];
-  const regex = /\((\d+)\)\s*/g;
-  let lastEnd = 0;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastEnd) {
-      result.push({ num: null, text: text.slice(lastEnd, match.index).trim() });
-    }
-    result.push({ num: parseInt(match[1], 10), text: "" });
-    lastEnd = regex.lastIndex;
-  }
-  if (lastEnd < text.length) {
-    result.push({ num: null, text: text.slice(lastEnd).trim() });
-  }
-  return result.filter((v) => v.text);
-}
-
+/**
+ * The recite screen: one dhikr per page, a tasbih ring for the repetitions,
+ * and explicit page navigation.
+ *
+ * Counting rules (pinned by scripts/test-adhkar.mjs):
+ * - one tap = one repetition, so a 100x dhikr stays on screen for 100 taps;
+ * - every repetition gets the soft tick;
+ * - the LAST repetition gets the distinct resolution tone + the vibration,
+ *   which is the only channel that still reaches a reader looking away;
+ * - the session ends only after the last page's last repetition.
+ */
 export function DhikrReciter({
   title,
   items,
@@ -53,35 +51,23 @@ export function DhikrReciter({
   onIncrement: (item: DhikrItem) => void;
   onExit: () => void;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [index, setIndex] = useState(
     Math.min(Math.max(0, startIndex), Math.max(0, items.length - 1))
   );
   const [leaving, setLeaving] = useState(false);
+  const [direction, setDirection] = useState<1 | -1>(1);
   const [finished, setFinished] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [voices, setVoices] = useState<DhikrVoice[]>([]);
-  useEffect(() => {
-    if (!isTtsSupported()) return;
-    let cancelled = false;
-    const load = () => {
-      getDhikrVoices()
-        .then((list) => {
-          if (!cancelled) setVoices(list);
-        })
-        .catch(() => {});
-    };
-    load();
-    const synth =
-      typeof window !== "undefined" ? window.speechSynthesis : undefined;
-    if (synth) synth.onvoiceschanged = load;
-    return () => {
-      cancelled = true;
-      if (synth) synth.onvoiceschanged = null;
-    };
-  }, []);
-  const [voiceOn, setVoiceOn] = useState(false);
+  /* A short "lit" window so the Done button visibly brightens on press even
+     when the tap is faster than the finger can see. */
+  const [pressed, setPressed] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const pressRef = useRef<number | null>(null);
+
+  const digits = useMemo(
+    () => new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en"),
+    [locale]
+  );
 
   const item = items[index];
   const isLast = index === items.length - 1;
@@ -93,43 +79,109 @@ export function DhikrReciter({
      until its last repetition, so the session is a real tasbih counter instead
      of one tap satisfying 100 at once. */
   const stillOwed = remaining > 0;
+  const percent = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+
+  /** Move to another page without counting anything. */
+  const go = useCallback(
+    (delta: 1 | -1) => {
+      if (leaving) return;
+      const next = index + delta;
+      if (next < 0 || next >= items.length) return;
+      /* The next page is a different dhikr: a recording from this one must not
+         keep talking over it. */
+      stopAdhkarAudio();
+      setDirection(delta);
+      setLeaving(true);
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        setLeaving(false);
+        setIndex(next);
+      }, 240);
+    },
+    [index, items.length, leaving]
+  );
+
+  const lightUp = useCallback(() => {
+    setPressed(true);
+    if (pressRef.current !== null) window.clearTimeout(pressRef.current);
+    pressRef.current = window.setTimeout(() => {
+      pressRef.current = null;
+      setPressed(false);
+    }, 320);
+  }, []);
 
   const advance = useCallback(() => {
     if (leaving || !item) return;
-    onIncrement(item);
-    /* Every tap gets a light confirmation. The final repetition gets a
-       distinct resolution so the ear can tell "this one is the last" from
-       "the session is over". */
     const prefs = loadDhikrFeedback();
-    /* Check BEFORE re-render: remaining is stale, but the closure check
-       correctly identifies the last repetition. For last rep, use
-       completion feedback; for others, use the tap feedback. */
-    if (target > 1 && remaining <= 1) playCompletionFeedback(prefs);
-    else if (remaining > 0) playDhikrTapFeedback(prefs);
+    onIncrement(item);
+    /* Every repetition gets a tick; the last one gets the distinct resolution
+       and the vibration. Checked BEFORE the re-render, while `remaining` still
+       describes the tap that just happened. */
+    if (remaining <= 1) playCompletionFeedback(prefs);
+    else playDhikrTapFeedback(prefs);
     /* Still repetitions left: stay on this dhikr. */
     if (remaining > 1) return;
-    if (isLast) { setFinished(true); return; }
+    if (isLast) {
+      stopAdhkarAudio();
+      setFinished(true);
+      return;
+    }
+    /* A little longer than a page flip so the final tone is not cut off. */
+    stopAdhkarAudio();
+    setDirection(1);
     setLeaving(true);
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       setLeaving(false);
       setIndex((i) => i + 1);
-    }, 300);
-  }, [item, isLast, leaving, onIncrement, remaining, target]);
+    }, 420);
+  }, [item, isLast, leaving, onIncrement, remaining]);
 
-  const advanceRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    advanceRef.current = advance;
-  }, [advance]);
+  /* Clear both timers on unmount: a page-flip timer that fires after the
+     reciter is gone would call setState on an unmounted tree. */
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      if (pressRef.current !== null) window.clearTimeout(pressRef.current);
+      stopAdhkarAudio();
+    },
+    []
+  );
 
-  const voice = useVoiceDhikr({
-    targetText: (item?.text ?? ""),
-    onCount: () => advanceRef.current?.(),
-    enabled: voiceOn && !finished && stillOwed,
-  });
-
-  /* Stop voice + speech on unmount. */
-  useEffect(() => () => { setVoiceOn(false); stopDhikrSpeech(); }, []);
+  /* Swipe to change page, RTL book order: swipe left = the next page, swipe
+     right = the page before. The rules (tap guard, vertical-scroll guard,
+     Android gesture edges) live in the pure module so they are testable and
+     the buttons below use the same `go()`. */
+  const touchRef = useRef<{ x: number; y: number; id: number } | null>(null);
+  const onTouchStart = (e: ReactTouchEvent) => {
+    /* A second finger must not turn the first finger's drag into a page turn. */
+    if (e.touches.length !== 1) {
+      touchRef.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchRef.current = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+  };
+  const onTouchEnd = (e: ReactTouchEvent) => {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start) return;
+    const touch = Array.from(e.changedTouches).find((t) => t.identifier === start.id);
+    if (!touch) return;
+    const direction = resolveSwipeNav({
+      dx: touch.clientX - start.x,
+      dy: touch.clientY - start.y,
+      startX: start.x,
+      viewportWidth: typeof window === "undefined" ? 0 : window.innerWidth,
+    });
+    if (direction === "next") go(1);
+    else if (direction === "prev") go(-1);
+  };
+  const onTouchCancel = () => {
+    touchRef.current = null;
+  };
 
   if (finished) {
     return <DoneScreen title={title} onExit={onExit} />;
@@ -155,61 +207,9 @@ export function DhikrReciter({
         >
           <X size={17} />
         </button>
-        <div className="flex items-center gap-2">
-          {isTtsSupported() && (
-            <button
-              type="button"
-              onClick={() => {
-                if (speaking) {
-                  stopDhikrSpeech();
-                  setSpeaking(false);
-                } else {
-                  setSpeaking(true);
-                  speakDhikr(item?.text ?? "", loadSelectedVoiceName(), () => setSpeaking(false));
-                }
-              }}
-              aria-label={speaking ? t("adhkar.playRecitation") : t("adhkar.playRecitation")}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-2 text-muted transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            >
-              {speaking ? <VolumeX size={17} /> : <Volume2 size={17} />}
-            </button>
-          )}
-          {isVoiceRecognitionSupported() && (
-            <button
-              type="button"
-              onClick={() => setVoiceOn((v) => !v)}
-              aria-pressed={voiceOn}
-              aria-label={t("adhkar.voiceCount")}
-              className={`flex h-10 items-center gap-1.5 rounded-2xl px-3 text-xs font-black transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                voiceOn
-                  ? "bg-gold text-primary-deep"
-                  : "bg-surface-2 text-muted"
-              }`}
-            >
-              {voiceOn ? <Mic size={15} /> : <MicOff size={15} />}
-              {voiceOn ? t("adhkar.voiceListening") : t("adhkar.voiceCount")}
-            </button>
-          )}
-        </div>
+        <span className="min-w-0 flex-1 truncate text-center text-xs font-black text-muted">{title}</span>
         <span className="num-ltr text-xs font-black tabular-nums text-muted">{counter}</span>
       </div>
-      {isTtsSupported() && voices.length > 0 && (
-        <div className="mt-2 flex items-center gap-2">
-          <label className="text-[11px] font-bold text-muted">{t("adhkar.voiceChooseVoice")}</label>
-          <select
-            value={loadSelectedVoiceName() ?? ""}
-            onChange={(e) => saveSelectedVoiceName(e.target.value || null)}
-            className="h-8 flex-1 rounded-xl bg-surface-2 px-2 text-xs font-bold text-ink"
-          >
-            <option value="">{t("adhkar.voiceChooseVoice")}</option>
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name} ({v.lang})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* progress */}
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
@@ -219,23 +219,39 @@ export function DhikrReciter({
         />
       </div>
 
-      {/* page card */}
-      <div className="mt-5 [perspective:1200px]">
+      {/* Listening: a real reciter for the Quran cards, an explicitly labelled
+          automatic reading for the hadith ones. No voice list, no TTS names. */}
+      <DhikrAudio item={item} />
+
+      {/* page card — one fixed frame for every dhikr, so the screen never
+          changes size when the reader moves to a longer or shorter text. Long
+          adhkar scroll inside the frame instead of stretching the card. */}
+      <div className="relative mt-5 [perspective:1200px]">
         <div
           key={item.id}
-          className={leaving ? "animate-dhikr-leave" : "animate-dhikr-arrive"}
+          className={
+            leaving
+              ? direction === 1
+                ? "animate-dhikr-leave"
+                : "animate-dhikr-leave-rev"
+              : "animate-dhikr-arrive"
+          }
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchCancel}
+          /* Native vertical scrolling stays alive; the handler above only
+             decides page turns. Without this the browser may claim the gesture
+             for scrolling before touchend ever runs. */
+          style={{ touchAction: "pan-y" }}
         >
           <Card
             className={`
-              overflow-hidden p-0
-              ${
-                item.type === "quran"
-                  ? "border-2 border-gold/50 bg-gold-soft/40"
-                  : ""
-              }
+              flex flex-col overflow-hidden p-0
+              ${item.type === "quran" ? "border-2 border-gold/50 bg-gold-soft/40" : ""}
             `}
+            style={{ height: "clamp(340px, 52dvh, 520px)" }}
           >
-            <div className="flex items-center gap-1.5 px-5 pt-5">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-5 pt-5">
               <span className="rounded-full bg-gold-soft px-2.5 py-1 text-[11px] font-black text-gold-strong">
                 {item.type === "quran" ? t("adhkar.quran") : t("adhkar.sunnah")}
               </span>
@@ -249,71 +265,98 @@ export function DhikrReciter({
               </span>
             </div>
 
-            {/* For quran type: render verses in mushaf style with ayah numbers */}
-            <div className={`px-5 ${target > 1 ? "mt-5" : "mt-4"} pb-5`}>
-              {item.title && (
-                <p className="mb-3 flex items-center justify-center gap-2 text-base font-black text-gold-strong">
-                  <span aria-hidden="true">✦</span>
-                  {item.title}
-                  <span aria-hidden="true">✦</span>
-                </p>
-              )}
-
-              {item.type === "quran" ? (
-                <VersesMushaf text={item.text} />
-              ) : (
-                <p className="break-words whitespace-pre-line text-ink text-dhikr">
-                  {item.text}
-                </p>
-              )}
-
-              {target > 1 && (
-                <div className="mt-5 flex flex-col items-center">
-                  <p className="text-xs font-bold text-muted">{t("adhkar.remaining", { n: remaining })}</p>
+            {/* Tasbih ring: the count left is the thing the reader actually
+                looks at, so it gets the largest number on the page. */}
+            {target > 1 && (
+              <div className="mt-4 flex shrink-0 flex-col items-center">
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={target}
+                  aria-valuenow={current}
+                  aria-label={t("adhkar.remaining", { n: remaining })}
+                >
+                  <ProgressRing
+                    percent={percent}
+                    size={124}
+                    stroke={9}
+                    track="var(--surface-2)"
+                    label={
+                      <span className="flex flex-col items-center leading-none">
+                        <span className="text-[34px] font-black tabular-nums text-gold-strong">
+                          {digits.format(current)}
+                        </span>
+                      </span>
+                    }
+                  />
                 </div>
-
-              )}
-
-              {item.note && (
-                <p className="mt-4 break-words border-s-2 border-gold/40 ps-3 text-xs leading-6 text-muted">
-                  {item.note}
+                <p className="mt-2 text-xs font-bold text-muted">
+                  {stillOwed
+                    ? t("adhkar.remaining", { n: remaining })
+                    : t("adhkar.done")}
                 </p>
-              )}
+              </div>
+            )}
 
-              <p className="mt-3 break-words text-[11px] text-muted">{item.source}</p>
+            {/* The body scrolls inside the fixed frame; when the dhikr is short
+                it is centred, so short and long adhkar share the same shape. */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="flex min-h-full flex-col justify-center px-5 pb-5 pt-4">
+                {item.title && (
+                  <p className="mb-3 text-center text-base font-black text-gold-strong">
+                    {item.title}
+                  </p>
+                )}
+
+                {item.type === "quran" ? (
+                  <VersesMushaf text={item.text} />
+                ) : (
+                  <p className="break-words whitespace-pre-line text-ink text-dhikr">
+                    {item.text}
+                  </p>
+                )}
+
+                {target > 1 && !stillOwed && (
+                  <div className="mt-4 flex flex-col items-center">
+                    <p className="text-xs font-bold text-muted">{t("adhkar.doneToday")}</p>
+                  </div>
+                )}
+
+                {item.note && (
+                  <p className="mt-4 break-words border-s-2 border-gold/40 ps-3 text-xs leading-6 text-muted">
+                    {item.note}
+                  </p>
+                )}
+
+                <p className="mt-3 break-words text-[11px] text-muted">{item.source}</p>
+              </div>
             </div>
           </Card>
         </div>
       </div>
 
       <p className="mt-5 text-center text-xs font-bold text-muted">
-        {stillOwed ? t("adhkar.tapHint") : t("adhkar.finish")}
+        {stillOwed ? t("adhkar.tapHint") : isLast ? t("adhkar.finish") : t("adhkar.next")}
       </p>
 
-      {voiceOn && (
-        <p className="mt-2 text-center text-[11px] font-bold text-muted" aria-live="polite">
-          {voice.error === "unsupported"
-            ? t("adhkar.voiceUnsupported")
-            : voice.error
-            ? t("adhkar.voiceNotHeard")
-            : voice.lastHeard
-            ? `${t("adhkar.voiceCounted")}: ${voice.lastHeard}`
-            : t("adhkar.voiceListening")}
-        </p>
-      )}
 
-      {/* Done button (dim by default, bright on press) */}
+      {/* Done button: muted until pressed, then it lights up. The `pressed`
+          window keeps that glow visible for ~0.3s after a quick tap. */}
       <button
         type="button"
-        onClick={advance}
+        onClick={() => {
+          lightUp();
+          advance();
+        }}
+        onPointerDown={lightUp}
         className={`
           mx-auto mt-3 flex h-14 w-44 items-center justify-center gap-2
-          rounded-3xl border border-gold/30 transition active:scale-95
-          focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary
+          rounded-3xl border transition-[transform,background-color,box-shadow,color] duration-200
+          active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary
           ${
-            isLast && !stillOwed
-              ? "bg-gold text-primary-deep"
-              : "bg-gold-soft text-gold-strong"
+            pressed
+              ? "border-gold bg-gold text-primary-deep shadow-[0_16px_34px_-14px_var(--gold)]"
+              : "border-gold/25 bg-gold-soft/60 text-gold-strong/75 shadow-none"
           }
         `}
       >
@@ -321,54 +364,41 @@ export function DhikrReciter({
         {isLast && !stillOwed ? t("adhkar.finish") : t("adhkar.done")}
       </button>
 
-      {/* Prev / Next page controls */}
+      {/* Page controls: forward even if the dhikr is unfinished, and back to
+          re-read. RTL shows "previous" on the right, like a book. */}
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
           type="button"
-          onClick={() => {
-            if (index > 0) setIndex(index - 1);
-          }}
+          onClick={() => go(-1)}
+          disabled={index === 0}
           aria-label={t("adhkar.prev")}
-          className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
+          className={`flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl px-3 text-[11px] font-black transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
             index > 0
-              ? "bg-surface-2 text-muted hover:bg-gold/20"
-              : "bg-surface-2 opacity-30"
-          } transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary`}
+              ? "bg-surface-2 text-ink hover:bg-gold/20"
+              : "bg-surface-2 text-muted opacity-30"
+          }`}
         >
-          <ChevronLeft size={16} className="rtl:rotate-180" />
+          <ChevronRight size={17} className="ltr:rotate-180" />
+          {t("adhkar.prev")}
         </button>
-        <span className="text-xs font-bold text-muted">{index + 1}/{items.length}</span>
+        <span className="num-ltr min-w-12 text-center text-xs font-black tabular-nums text-muted">
+          {index + 1}/{items.length}
+        </span>
         <button
           type="button"
-          onClick={() => {
-            if (index < items.length - 1) setIndex(index + 1);
-          }}
+          onClick={() => go(1)}
+          disabled={isLast}
           aria-label={t("adhkar.next")}
-          className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
-            index < items.length - 1
-              ? "bg-surface-2 text-muted hover:bg-gold/20"
-              : "bg-surface-2 opacity-30"
-          } transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary`}
+          className={`flex h-11 min-w-11 items-center justify-center gap-1 rounded-2xl px-3 text-[11px] font-black transition active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+            !isLast
+              ? "bg-surface-2 text-ink hover:bg-gold/20"
+              : "bg-surface-2 text-muted opacity-30"
+          }`}
         >
-          <ChevronRight size={16} className="rtl:rotate-180" />
+          {t("adhkar.next")}
+          <ChevronLeft size={17} className="ltr:rotate-180" />
         </button>
       </div>
-    </div>
-  );
-}
-
-function VersesMushaf({ text }: { text: string }) {
-  const verses = useMemo(() => parseVerses(text), [text]);
-  return (
-    <div className="space-y-1">
-      {verses.map((v, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="flex w-5 items-center justify-center rounded-full bg-gold text-[10px] font-black text-primary-deep">
-            {v.num ?? "--"}
-          </span>
-          <span className="font-quran text-base text-ink">{v.text}</span>
-        </div>
-      ))}
     </div>
   );
 }
