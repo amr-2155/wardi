@@ -148,8 +148,14 @@ const FROZEN_HASHES = {
      dhikr feedback, TTS voice) and a per-key storage format. Backup import now
      validates json keys as JSON and string keys as bounded plain text, so a
      real export with a bare locale or page number imports again. Behaviour is
-     covered by the A3 scan and the string round-trip in test-w1. */
-  "src/lib/userData.ts": "9281b978d73436b4",
+     covered by the A3 scan and the string round-trip in test-w1.
+
+     Re-pinned again 2026-11-17 after a device check: upgraded installs carry
+     three keys no shipped code reads (ward:v2:reading and two older
+     mushaf glyph-box caches). They are listed in STALE_KEYS so delete-all
+     removes them; they are not "user data" because no parser is left to prove
+     a valid shape, and a backup omits them on purpose. Covered by test-w1. */
+  "src/lib/userData.ts": "7ed74d9ac234e370",
   /* Re-pinned 2026-11-17: import validation follows the registry's declared
      format instead of demanding JSON from every key. Corrupt JSON is still
      rejected; only the intentionally-bare string preferences are exempt from

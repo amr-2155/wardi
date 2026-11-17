@@ -113,6 +113,23 @@ export const REGENERABLE_KEYS: readonly string[] = [
   "quran-v1", // parsed dataset cache
 ] as const;
 
+/**
+ * Keys written by older builds that no shipped code reads any more.
+ *
+ * A device that has been upgraded across releases still carries these, so
+ * "delete all data" must remove them or the reset is only partial. They are
+ * deliberately NOT in `USER_DATA_KEYS`: there is no parser left to define a
+ * valid shape, and backup validation needs one — registering a key whose
+ * format cannot be proven is exactly how a legitimate export became
+ * unimportable. A backup omits them for the same reason: restoring an obsolete
+ * key would only put stale state back into a build that never reads it.
+ */
+export const STALE_KEYS: readonly string[] = [
+  "ward:v2:reading", // pre-`progress` reading tracker
+  "ward:v2:mushaf:glyph-box", // v1 glyph metrics
+  "ward:v2:mushaf:glyph-box-v2", // v2 glyph metrics
+] as const;
+
 export const USER_DATA_KEY_NAMES: readonly string[] = USER_DATA_KEYS.map((k) => k.key);
 
 export function formatOfKey(key: string): UserDataFormat | null {
@@ -124,16 +141,24 @@ export function categoryOfKey(key: string): UserDataCategory | null {
 }
 
 /** Keys that currently hold a value, split by kind. Used by tests + reset. */
-export function inventoryLocalKeys(): { userData: string[]; regenerable: string[] } {
+export function inventoryLocalKeys(): {
+  userData: string[];
+  regenerable: string[];
+  stale: string[];
+} {
   const userData: string[] = [];
   const regenerable: string[] = [];
+  const stale: string[] = [];
   for (const { key } of USER_DATA_KEYS) {
     if (safeGet(key) !== null) userData.push(key);
   }
   for (const key of REGENERABLE_KEYS) {
     if (safeGet(key) !== null) regenerable.push(key);
   }
-  return { userData, regenerable };
+  for (const key of STALE_KEYS) {
+    if (safeGet(key) !== null) stale.push(key);
+  }
+  return { userData, regenerable, stale };
 }
 
 function safeGet(key: string): string | null {
@@ -172,13 +197,19 @@ export function writeUserDataRaw(snapshot: Record<string, unknown>): void {
 }
 
 /**
- * Remove every user-data key plus the regenerable caches.
+ * Remove every user-data key plus the regenerable caches and the stale keys
+ * old installs left behind.
  * Returns the keys that are still present afterwards, so callers (and tests)
  * can prove the reset actually reached a clean state.
  */
-export function clearUserData(): { userData: string[]; regenerable: string[] } {
+export function clearUserData(): {
+  userData: string[];
+  regenerable: string[];
+  stale: string[];
+} {
   for (const { key } of USER_DATA_KEYS) remove(key);
   for (const key of REGENERABLE_KEYS) remove(key);
+  for (const key of STALE_KEYS) remove(key);
   return inventoryLocalKeys();
 }
 

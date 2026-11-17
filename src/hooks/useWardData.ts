@@ -764,7 +764,11 @@ export function useWardData(): WardData {
     applyThemeClass(DEFAULT_SETTINGS.theme);
     // Surfaced so the UI (and tests) can assert the reset really reached a
     // clean state instead of assuming it did.
-    setResidueAfterReset([...leftover.userData, ...leftover.regenerable]);
+    setResidueAfterReset([
+      ...leftover.userData,
+      ...leftover.regenerable,
+      ...leftover.stale,
+    ]);
   }, []);
 
   const applyTheme = useCallback((theme: ThemeMode) => {

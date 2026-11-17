@@ -309,7 +309,7 @@ const AR: Record<string, string> = {
 
   /* W2: reminder status surfaced by the OS scheduler. Each branch is a
      distinct truthful outcome, so each needs its own text. */
-  "settings.reminderStatus.scheduled": "تم جدولة التذكير — بانتظار التحقق على جهاز حقيقي",
+  "settings.reminderStatus.scheduled": "تم جدولة التذكير على هذا الجهاز",
   "settings.reminderStatus.permissionDenied": "الإذن غير مفعّل — لن يصلك التذكير",
   "settings.reminderStatus.unsupported":
     "التذكير يعمل على تطبيق أندرويد فقط؛ في المتصفح لا يمكن ضمانه",
@@ -1123,7 +1123,7 @@ const EN: Record<string, string> = {
 
   /* W2: reminder status surfaced by the OS scheduler. Each branch is a
      distinct truthful outcome, so each needs its own text. */
-  "settings.reminderStatus.scheduled": "Reminder scheduled — pending verification on a real device",
+  "settings.reminderStatus.scheduled": "Reminder scheduled on this device",
   "settings.reminderStatus.permissionDenied": "Permission is off — you will not receive the reminder",
   "settings.reminderStatus.unsupported":
     "Reminders only run in the Android app; they cannot be guaranteed in the browser",

@@ -71,7 +71,7 @@ const resetStorage = () => LS.clear();
 const load = async (rel) => import(pathToFileURL(join(OUT, rel)).href);
 
 const { parseBackup, applyBackup, createBackup, BACKUP_APP_ID, BACKUP_VERSION } = await load("backup.js");
-const { clearUserData, USER_DATA_KEYS, REGENERABLE_KEYS, inventoryLocalKeys } = await load("userData.js");
+const { clearUserData, USER_DATA_KEYS, REGENERABLE_KEYS, STALE_KEYS, inventoryLocalKeys } = await load("userData.js");
 const { msUntilNextMidnight } = await load("dates.js");
 const {
   parseReminderTime,
@@ -300,6 +300,48 @@ check("A2: delete-all returns a verified clean state", () => {
   assert.deepEqual(leftover.regenerable, []);
 });
 
+/* Found on a real device, not in the test fixture: upgrading across releases
+   leaves keys behind that no shipped code reads. They are invisible to both
+   the registry and the regenerable list, so "delete all data" used to leave
+   them in storage forever. */
+check("A2: delete-all removes stale keys left by older installs", () => {
+  resetStorage();
+  for (const k of STALE_KEYS) LS.setItem(k, JSON.stringify({ old: true }));
+  const leftover = clearUserData();
+  for (const k of STALE_KEYS) {
+    assert.equal(LS.getItem(k), null, `${k} survived the reset`);
+  }
+  assert.deepEqual(leftover.stale, [], "reset residue must report stale keys");
+});
+
+check("A2: a stale key is never registered or regenerable", () => {
+  const names = new Set(USER_DATA_KEYS.map((k) => k.key));
+  for (const key of STALE_KEYS) {
+    assert.ok(!names.has(key), `${key} is both stale and user data`);
+    assert.ok(!REGENERABLE_KEYS.includes(key), `${key} is both stale and regenerable`);
+  }
+});
+
+check("A2: inventory reports a stale key separately from user data", () => {
+  resetStorage();
+  LS.setItem("ward:v2:reading", JSON.stringify({ page: 12 }));
+  const inv = inventoryLocalKeys();
+  assert.deepEqual(inv.stale, ["ward:v2:reading"]);
+  assert.ok(!inv.userData.includes("ward:v2:reading"));
+});
+
+check("A2: a backup omits stale keys", () => {
+  resetStorage();
+  LS.setItem("ward:v2:reading", JSON.stringify({ page: 12 }));
+  const parsed = JSON.parse(
+    createBackup({ settings: DEFAULT_SETTINGS, history: [], progress: null })
+  );
+  assert.ok(
+    !("ward:v2:reading" in (parsed.data ?? {})),
+    "an obsolete key must not be carried into a backup"
+  );
+});
+
 check("A2: delete-all does not touch keys the app does not own", () => {
   seedAll();
   clearUserData();
@@ -346,8 +388,12 @@ check("A3: the source scan is not vacuous", () => {
   assert.ok(sourceKeys.size >= 25, `only ${sourceKeys.size} storage keys found`);
 });
 
-check("A3: every storage key is registered, regenerable, or exempt with a reason", () => {
-  const classified = new Set([...USER_DATA_KEYS.map((k) => k.key), ...REGENERABLE_KEYS]);
+check("A3: every storage key is registered, regenerable, stale, or exempt with a reason", () => {
+  const classified = new Set([
+    ...USER_DATA_KEYS.map((k) => k.key),
+    ...REGENERABLE_KEYS,
+    ...STALE_KEYS,
+  ]);
   const unexplained = [...sourceKeys.keys()].filter(
     (key) => !classified.has(key) && !EXEMPT_KEYS.has(key)
   );
@@ -364,6 +410,7 @@ check("A3: an exemption is never also in the registry", () => {
   for (const key of EXEMPT_KEYS.keys()) {
     assert.ok(!names.has(key), `${key} cannot be both exempt and user data`);
     assert.ok(!REGENERABLE_KEYS.includes(key), `${key} cannot be both exempt and regenerable`);
+    assert.ok(!STALE_KEYS.includes(key), `${key} cannot be both exempt and stale`);
   }
 });
 

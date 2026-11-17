@@ -203,7 +203,11 @@ export function toExportJSON(data: WardAppData): string {
 }
 
 
-export function clearAllData(): { userData: string[]; regenerable: string[] } {
+export function clearAllData(): {
+  userData: string[];
+  regenerable: string[];
+  stale: string[];
+} {
   return clearUserData();
 }
 const isAyahRef = (value: unknown): value is string =>

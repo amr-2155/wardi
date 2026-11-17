@@ -108,6 +108,12 @@ preferences. Each registry entry declares its storage format (`json` or plain
 intentionally stored as bare text — import validates each key by its declared
 format instead of assuming JSON everywhere.
 
+Keys left behind by older releases are listed in `STALE_KEYS`: they are removed
+by a full reset but deliberately kept out of the registry (no parser is left to
+prove their shape) and out of backups (restoring one would only put stale state
+back). A device that has been upgraded across releases keeps such keys in
+storage, and they are invisible to both the registry and the regenerable list.
+
 ## Reminders
 
 Every reminder switch lives in one Settings section (`RemindersSettingsPanel`):
