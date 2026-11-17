@@ -29,51 +29,77 @@ export type UserDataCategory =
   | "adhkar"
   | "legacy";
 
+/**
+ * How a value is physically stored.
+ *
+ * Most keys hold `JSON.stringify(...)`, which is what a backup can validate.
+ * A few preferences are written as a bare string (`"ar"`, `"42"`, a reciter id)
+ * because that is what their reader parses. The format is declared here so the
+ * backup importer can validate the right thing for each key instead of
+ * assuming JSON everywhere — an assumption that made a perfectly good export
+ * unimportable as soon as someone had changed the language or opened a page.
+ */
+export type UserDataFormat = "json" | "string";
+
 export type UserDataKey = {
   key: string;
   category: UserDataCategory;
+  format: UserDataFormat;
 };
 
 /** Every localStorage key holding user-generated data, grouped by category. */
 export const USER_DATA_KEYS: readonly UserDataKey[] = [
   // --- Ward core (storage.ts) ---
-  { key: "ward:v2:settings", category: "settings" },
-  { key: "ward:v2:history", category: "history" },
-  { key: "ward:v2:progress", category: "progress" },
-  { key: "ward:v2:daily", category: "daily" },
-  { key: "ward:v2:bookmarks", category: "bookmarks" },
-  { key: "ward:v2:wardday", category: "wardDay" },
-  { key: "ward:v2:journal", category: "journal" },
-  { key: "ward:v2:quran-progress", category: "quranProgress" },
+  { key: "ward:v2:settings", category: "settings", format: "json" },
+  { key: "ward:v2:history", category: "history", format: "json" },
+  { key: "ward:v2:progress", category: "progress", format: "json" },
+  { key: "ward:v2:daily", category: "daily", format: "json" },
+  { key: "ward:v2:bookmarks", category: "bookmarks", format: "json" },
+  { key: "ward:v2:wardday", category: "wardDay", format: "json" },
+  { key: "ward:v2:journal", category: "journal", format: "json" },
+  { key: "ward:v2:quran-progress", category: "quranProgress", format: "json" },
+
+  // --- Preferences (accent, onboarding, adhkar feedback) ---
+  { key: "ward:v2:accent:v1", category: "settings", format: "json" },
+  { key: "ward:v2:onboarding:v1", category: "settings", format: "json" },
+  { key: "ward:v2:dhikr-feedback:v1", category: "settings", format: "json" },
+
+  // --- Progress + daily state ---
+  { key: "ward:v2:freezes:v1", category: "progress", format: "json" },
+  { key: "ward:v2:after-prayer:v1", category: "daily", format: "json" },
+
+  // --- Dedications (user-written) ---
+  { key: "ward:v2:dedications:v1", category: "journal", format: "json" },
 
   // --- Audio preferences + resume (lib/audio/storage.ts) ---
-  { key: "wardi:audio:settings-v1", category: "audio" },
-  { key: "wardi:audio:resume-v1", category: "audio" },
-  { key: "ward:v2:adhkar-reciter:v1", category: "audio" },
+  { key: "wardi:audio:settings-v1", category: "audio", format: "json" },
+  { key: "wardi:audio:resume-v1", category: "audio", format: "json" },
+  { key: "ward:v2:adhkar-reciter:v1", category: "audio", format: "string" },
+  { key: "ward:v2:dhikr-voice:v1", category: "audio", format: "string" },
 
   // --- Mushaf reader preferences + session ---
-  { key: "ward:v2:mushaf:theme", category: "reader" },
-  { key: "ward:v2:mushaf:fit", category: "reader" },
-  { key: "ward:v2:mushaf:session", category: "reader" },
-  { key: "ward:v2:mushaf:page", category: "reader" },
-  { key: "ward:v2:mushaf:quran-session", category: "reader" },
-  { key: "ward:v2:mushaf:quran-page", category: "reader" },
+  { key: "ward:v2:mushaf:theme", category: "reader", format: "json" },
+  { key: "ward:v2:mushaf:fit", category: "reader", format: "json" },
+  { key: "ward:v2:mushaf:session", category: "reader", format: "json" },
+  { key: "ward:v2:mushaf:page", category: "reader", format: "string" },
+  { key: "ward:v2:mushaf:quran-session", category: "reader", format: "json" },
+  { key: "ward:v2:mushaf:quran-page", category: "reader", format: "string" },
 
   // --- Locale ---
-  { key: "ward:v2:locale", category: "locale" },
+  { key: "ward:v2:locale", category: "locale", format: "string" },
 
   // --- Prayer (lib/prayerSettings.ts) ---
-  { key: "ward:v2:prayer", category: "prayer" },
-  { key: "ward:v2:prayer:fired", category: "prayer" },
+  { key: "ward:v2:prayer", category: "prayer", format: "json" },
+  { key: "ward:v2:prayer:fired", category: "prayer", format: "json" },
 
   // --- Adhkar + niyyah (lib/adhkarStore.ts) ---
-  { key: "ward:v2:adhkar-counts", category: "adhkar" },
-  { key: "ward:v2:adhkar-favorites", category: "adhkar" },
-  { key: "ward:v2:niyyah", category: "adhkar" },
+  { key: "ward:v2:adhkar-counts", category: "adhkar", format: "json" },
+  { key: "ward:v2:adhkar-favorites", category: "adhkar", format: "json" },
+  { key: "ward:v2:niyyah", category: "adhkar", format: "json" },
 
   // --- Legacy ward keys, removed on reset so old installs cannot resurrect ---
-  { key: "ward-settings", category: "legacy" },
-  { key: "ward-history", category: "legacy" },
+  { key: "ward-settings", category: "legacy", format: "json" },
+  { key: "ward-history", category: "legacy", format: "json" },
 ] as const;
 
 /**
@@ -88,6 +114,10 @@ export const REGENERABLE_KEYS: readonly string[] = [
 ] as const;
 
 export const USER_DATA_KEY_NAMES: readonly string[] = USER_DATA_KEYS.map((k) => k.key);
+
+export function formatOfKey(key: string): UserDataFormat | null {
+  return USER_DATA_KEYS.find((entry) => entry.key === key)?.format ?? null;
+}
 
 export function categoryOfKey(key: string): UserDataCategory | null {
   return USER_DATA_KEYS.find((entry) => entry.key === key)?.category ?? null;

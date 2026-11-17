@@ -219,10 +219,17 @@ const SEED = {
   "ward:v2:mushaf:theme": JSON.stringify("sepia"),
   "ward:v2:mushaf:fit": JSON.stringify({ scale: 1.1 }),
   "ward:v2:mushaf:session": JSON.stringify({ page: 42 }),
-  "ward:v2:mushaf:page": JSON.stringify({ page: 42 }),
+  "ward:v2:mushaf:page": "42",
   "ward:v2:mushaf:quran-session": JSON.stringify({ page: 10 }),
-  "ward:v2:mushaf:quran-page": JSON.stringify({ page: 10 }),
-  "ward:v2:locale": JSON.stringify("en"),
+  "ward:v2:mushaf:quran-page": "10",
+  "ward:v2:locale": "ar",
+  "ward:v2:accent:v1": JSON.stringify("emerald"),
+  "ward:v2:onboarding:v1": JSON.stringify({ seen: true }),
+  "ward:v2:dhikr-feedback:v1": JSON.stringify({ sound: true, haptics: false }),
+  "ward:v2:freezes:v1": JSON.stringify({ used: 2 }),
+  "ward:v2:after-prayer:v1": JSON.stringify({ date: "2026-01-01", done: true }),
+  "ward:v2:dedications:v1": JSON.stringify([{ id: "d1", text: "n" }]),
+  "ward:v2:dhikr-voice:v1": "ar-SA-language",
   "ward:v2:prayer": JSON.stringify({ enabled: true }),
   "ward:v2:prayer:fired": JSON.stringify({ "2026-01-01:fajr:adhan": true }),
   "ward:v2:adhkar-counts": JSON.stringify({ a: 3 }),
@@ -251,6 +258,9 @@ check("A2: the registry covers every user-data category that deletion targets", 
     "wardi:audio:settings-v1", "wardi:audio:resume-v1", "ward:v2:mushaf:theme",
     "ward:v2:mushaf:fit", "ward:v2:mushaf:session", "ward:v2:mushaf:page",
     "ward:v2:mushaf:quran-session", "ward:v2:mushaf:quran-page", "ward:v2:locale",
+    "ward:v2:accent:v1", "ward:v2:onboarding:v1", "ward:v2:dhikr-feedback:v1",
+    "ward:v2:freezes:v1", "ward:v2:after-prayer:v1", "ward:v2:dedications:v1",
+    "ward:v2:dhikr-voice:v1", "ward:v2:adhkar-reciter:v1",
     "ward:v2:prayer", "ward:v2:prayer:fired", "ward:v2:adhkar-counts",
     "ward:v2:adhkar-favorites", "ward:v2:niyyah", "ward-settings", "ward-history",
   ]) {
@@ -300,6 +310,70 @@ check("A2: inventory sees every seeded user-data key", () => {
   seedAll();
   const inv = inventoryLocalKeys();
   assert.equal(inv.userData.length, USER_DATA_KEYS.length);
+});
+
+/* ================================================================== */
+/* A3 — no storage key can exist outside the registry                  */
+/* ================================================================== */
+/* A registry is only a promise if something proves it is complete. This
+   scans the real source for storage-key literals and fails when a key is used
+   but not classified — the exact mistake that left onboarding, accent,
+   dedications, freezes, after-prayer and dhikr preferences out of backup and
+   delete-all for several releases. */
+const STORAGE_LITERAL =
+  /"(ward[:\-][A-Za-z0-9:_\-]*|wardi:[A-Za-z0-9:_\-]*|quran-v1)"/g;
+
+/* Deliberately outside user data. The reason is mandatory so this cannot turn
+   into a dumping ground for keys nobody classified. */
+const EXEMPT_KEYS = new Map([
+  [
+    "ward:sw-purged-v2",
+    "one-shot service-worker purge marker: not user data, and re-running the purge is harmless",
+  ],
+]);
+
+const sourceKeys = new Map(); // key -> first file that uses it
+for (const file of walkFiles(join(ROOT, "src"))) {
+  const text = readFileSync(file, "utf8");
+  for (const match of text.matchAll(STORAGE_LITERAL)) {
+    if (!sourceKeys.has(match[1])) {
+      sourceKeys.set(match[1], file.slice(ROOT.length + 1));
+    }
+  }
+}
+
+check("A3: the source scan is not vacuous", () => {
+  assert.ok(sourceKeys.size >= 25, `only ${sourceKeys.size} storage keys found`);
+});
+
+check("A3: every storage key is registered, regenerable, or exempt with a reason", () => {
+  const classified = new Set([...USER_DATA_KEYS.map((k) => k.key), ...REGENERABLE_KEYS]);
+  const unexplained = [...sourceKeys.keys()].filter(
+    (key) => !classified.has(key) && !EXEMPT_KEYS.has(key)
+  );
+  assert.deepEqual(
+    unexplained,
+    [],
+    "unclassified storage keys (register them or exempt them with a reason):\n" +
+      unexplained.map((key) => `  ${key} — ${sourceKeys.get(key)}`).join("\n")
+  );
+});
+
+check("A3: an exemption is never also in the registry", () => {
+  const names = new Set(USER_DATA_KEYS.map((k) => k.key));
+  for (const key of EXEMPT_KEYS.keys()) {
+    assert.ok(!names.has(key), `${key} cannot be both exempt and user data`);
+    assert.ok(!REGENERABLE_KEYS.includes(key), `${key} cannot be both exempt and regenerable`);
+  }
+});
+
+check("A3: every registry key declares a valid storage format", () => {
+  for (const entry of USER_DATA_KEYS) {
+    assert.ok(
+      entry.format === "json" || entry.format === "string",
+      `${entry.key} has no valid storage format`
+    );
+  }
 });
 
 /* ================================================================== */
@@ -506,6 +580,41 @@ check("A1: export -> import round-trips the ward core", () => {
   assert.equal(res.settings.currentPage, 123);
   assert.equal(res.history.length, 1);
   assert.equal(res.progress.pages, 23);
+});
+
+check("A1: plain-string preferences survive export -> import", () => {
+  resetStorage();
+  /* These four are stored as bare strings, not JSON. Requiring JSON for every
+     known key rejected a user's own export as soon as they had switched
+     language, opened a mushaf page, or picked a reciter. */
+  LS.setItem("ward:v2:locale", "ar");
+  LS.setItem("ward:v2:mushaf:page", "42");
+  LS.setItem("ward:v2:adhkar-reciter:v1", "7");
+  LS.setItem("ward:v2:dhikr-voice:v1", "ar-SA-language");
+
+  const text = createBackup({ settings: DEFAULT_SETTINGS, history: [], progress: null });
+  const res = parseBackup(text);
+  assert.equal(res.ok, true, "a real export with string preferences must import");
+  assert.equal(res.raw["ward:v2:locale"], "ar");
+  assert.equal(res.raw["ward:v2:mushaf:page"], "42");
+
+  applyBackup(res);
+  assert.equal(LS.getItem("ward:v2:locale"), "ar");
+  assert.equal(LS.getItem("ward:v2:mushaf:page"), "42");
+});
+
+check("A1: a string key with control characters is rejected", () => {
+  const text = JSON.stringify({
+    app: BACKUP_APP_ID,
+    version: BACKUP_VERSION,
+    settings: DEFAULT_SETTINGS,
+    history: [],
+    progress: null,
+    data: { "ward:v2:locale": "ar\nbroken" },
+  });
+  const res = parseBackup(text);
+  assert.equal(res.ok, false, "a corrupted string preference must not be written");
+  assert.equal(res.code, "invalid-snapshot");
 });
 
 check("A1: export includes every user-data category deletion can remove", () => {

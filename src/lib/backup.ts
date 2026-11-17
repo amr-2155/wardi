@@ -20,7 +20,12 @@ import {
   sanitizeSettings,
 } from "./storage";
 import type { WardAppData } from "./types";
-import { USER_DATA_KEY_NAMES, readUserDataRaw, writeUserDataRaw } from "./userData";
+import {
+  formatOfKey,
+  readUserDataRaw,
+  writeUserDataRaw,
+  type UserDataFormat,
+} from "./userData";
 
 /** The ward core a backup always carries, mirroring the hook's state shape. */
 export type WardAppSnapshot = WardAppData;
@@ -116,23 +121,39 @@ function progressLooksValid(raw: unknown): boolean {
 
 /**
  * v3 carries a full raw snapshot. Unknown keys are ignored, but a KNOWN key
- * holding a non-string or unparseable value rejects the whole file — otherwise
- * a corrupt category would be silently skipped and the import would report
- * success while dropping data.
+ * whose value does not match the storage format declared in the registry
+ * rejects the whole file — otherwise a corrupt category would be silently
+ * skipped and the import would report success while dropping data.
+ *
+ * The check is per key, not "JSON everywhere": several preferences are
+ * intentionally stored as plain strings (locale, last page, reciter, voice).
+ * Demanding JSON for those made a legitimate export unimportable for anyone
+ * who had changed the language or opened a mushaf page.
  */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+function valueMatchesFormat(value: string, format: UserDataFormat): boolean {
+  if (format === "json") {
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return value.length > 0 && value.length <= 200 && !CONTROL_CHARS.test(value);
+}
+
 function snapshotLooksValid(
   raw: unknown
 ): { valid: true; entries: Record<string, string> } | { valid: false } {
   if (!isPlainObject(raw)) return { valid: false };
   const entries: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw)) {
-    if (!USER_DATA_KEY_NAMES.includes(key)) continue;
+    const format = formatOfKey(key);
+    if (!format) continue; // a key this build does not own
     if (typeof value !== "string") return { valid: false };
-    try {
-      JSON.parse(value);
-    } catch {
-      return { valid: false };
-    }
+    if (!valueMatchesFormat(value, format)) return { valid: false };
     entries[key] = value;
   }
   return { valid: true, entries };

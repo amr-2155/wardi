@@ -100,8 +100,13 @@ entry, `plannedStart`/`plannedEnd` keep the range that was set while
 
 Adding a persisted feature means adding its key to `USER_DATA_KEYS` (or
 `REGENERABLE_KEYS` if it can be rebuilt). Forgetting to do so means the value
-survives a reset and is missing from a backup — both are covered by
-`scripts/test-w1.mjs`.
+survives a reset and is missing from a backup. `scripts/test-w1.mjs` enforces
+this both ways: it scans `src/` for storage-key literals and fails when one is
+unregistered, and it round-trips a real export containing the plain-string
+preferences. Each registry entry declares its storage format (`json` or plain
+`string`), because the locale, last page, reciter and TTS voice are
+intentionally stored as bare text — import validates each key by its declared
+format instead of assuming JSON everywhere.
 
 ## Reminders
 

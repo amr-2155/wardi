@@ -143,12 +143,18 @@ const FROZEN_HASHES = {
      multiplication in two files. Pure addition; no existing behaviour changed
      (regression-checked in scripts/test-reminders.mjs). */
   "src/lib/reminderTime.ts": "D10F9BE219242CC5",
-  /* Re-pinned 2026-11-16: registered `ward:v2:adhkar-reciter:v1`, the reciter
-     choice introduced with adhkar playback. It was the only persisted key the
-     new feature added outside the registry, so delete-all and backup would
-     have missed it. Pure registry addition; behaviour is covered by test-w1. */
-  "src/lib/userData.ts": "8e10fa8f7024f396",
-  "src/lib/backup.ts": "51176E5275E19A49",
+  /* Re-pinned 2026-11-17: the registry gained the seven keys that were being
+     written outside it (onboarding, accent, dedications, freezes, after-prayer,
+     dhikr feedback, TTS voice) and a per-key storage format. Backup import now
+     validates json keys as JSON and string keys as bounded plain text, so a
+     real export with a bare locale or page number imports again. Behaviour is
+     covered by the A3 scan and the string round-trip in test-w1. */
+  "src/lib/userData.ts": "9281b978d73436b4",
+  /* Re-pinned 2026-11-17: import validation follows the registry's declared
+     format instead of demanding JSON from every key. Corrupt JSON is still
+     rejected; only the intentionally-bare string preferences are exempt from
+     JSON parsing. Regression-checked in scripts/test-w1.mjs. */
+  "src/lib/backup.ts": "0ecdc55b75ff7344",
   "src/hooks/useAudio.ts": "D2C19EFBDD8CBDBE",
   /* Re-pinned 2026-10-26: hardcoded Arabic percent sign ("٪") and the
      resume-separator ("آ·") were localized via t("mushaf.percent") and
