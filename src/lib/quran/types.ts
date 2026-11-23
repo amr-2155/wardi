@@ -119,4 +119,10 @@ export type WardProgress = {
   candidatePriority: CandidatePriority;
   tadabburHistory: AyahRef[];
   done: boolean;
+  /* Reflection grounded in the printed pages actually read. Optional so an
+     older saved progress object stays valid. `reflectionPages` is the confirmed
+     set from the finished ward; `reflectionAyah` is the chosen ayah from those
+     pages, used by the reflection UI instead of the hash-of-day ayah. */
+  reflectionPages?: number[];
+  reflectionAyah?: AyahRef | null;
 };

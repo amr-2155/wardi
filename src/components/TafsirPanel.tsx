@@ -70,6 +70,10 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       lines.push(t("tafsir.section.detailed"));
       entry.detailed.forEach((p, i) => lines.push(`${i + 1}. ${p}`));
     }
+    if (entry.practice?.length) {
+      lines.push(t("tadabbur.section.live"));
+      entry.practice.forEach((p, i) => lines.push(`${i + 1}. ${p}`));
+    }
     if (entry.benefits?.length) {
       lines.push(t("tafsir.section.benefits"));
       for (const b of entry.benefits) {
@@ -215,6 +219,19 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
               </p>
             ))}
           </div>
+        </Section>
+      )}
+
+      {entry.practice && entry.practice.length > 0 && (
+        <Section icon={FileText} title={t("tadabbur.section.live")}>
+          <ul className="flex flex-col gap-2">
+            {entry.practice.map((step, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-7 text-ink">
+                <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-gold-strong" />
+                {step}
+              </li>
+            ))}
+          </ul>
         </Section>
       )}
 

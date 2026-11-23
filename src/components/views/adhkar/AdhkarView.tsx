@@ -32,6 +32,7 @@ import {
   saveAdhkarFavorites,
   type AdhkarCounts,
 } from "@/lib/adhkarStore";
+import { toArabicIndic } from "@/lib/quran/mushaf";
 import { loadDhikrFeedback, playCompletionFeedback, playDhikrTapFeedback, saveDhikrFeedback, type DhikrFeedback } from "@/lib/dhikrFeedback";
 import { matchesAnyArabic } from "@/lib/arabicSearch";
 import { msUntilNextMidnight, todayKey } from "@/lib/dates";
@@ -240,6 +241,7 @@ function AdhkarHome({
   onOpenCategory: (id: DhikrCategoryId) => void;
 }) {
   const { locale, t } = useLocale();
+  const numStr = (v: number) => (locale === "ar" ? toArabicIndic(v) : String(v));
   const favoriteIds = new Set(favorites);
   const resumeTitle = resumeCategory
     ? (() => {
@@ -247,8 +249,8 @@ function AdhkarHome({
         return category ? (locale === "ar" ? category.titleAr : category.titleEn) : "";
       })()
     : "";
-  const progressLabel = t("adhkar.progress", { current: progress.done, total: progress.total });
-  const percentLabel = t("ui.progress", { percent: progress.percent });
+  const progressLabel = t("adhkar.progress", { current: numStr(progress.done), total: numStr(progress.total) });
+  const percentLabel = t("ui.progress", { percent: numStr(progress.percent) });
 
   return (
     <>
@@ -273,7 +275,7 @@ function AdhkarHome({
               track="var(--surface-2)"
               label={
                 <span className="text-sm font-black tabular-nums text-gold-strong">
-                  {progress.percent}%
+                  {numStr(progress.percent)}%
                 </span>
               }
             />
@@ -313,7 +315,7 @@ function AdhkarHome({
         const doneCount = items.filter((item) => countOf(item) >= (item.count ?? 1)).length;
         const categoryPercent =
           items.length === 0 ? 0 : Math.round((doneCount / items.length) * 100);
-        const categoryLabel = t("adhkar.progress", { current: doneCount, total: items.length });
+        const categoryLabel = t("adhkar.progress", { current: numStr(doneCount), total: numStr(items.length) });
         const title = locale === "ar" ? category.titleAr : category.titleEn;
         const Icon = CATEGORY_ICONS[category.id];
         return (
@@ -331,7 +333,7 @@ function AdhkarHome({
             <span className="flex-1">
               <span className="block text-[15px] font-black leading-tight text-ink">{title}</span>
               <span className="mt-1 block text-xs leading-5 text-muted">
-                {items.length} {t("adhkar.items")}
+                {numStr(items.length)} {t("adhkar.items")}
                 {favoriteCount > 0 ? ` ${t("adhkar.separator")} ${t("adhkar.favCount", { n: favoriteCount })}` : ""}
               </span>
               <span className="mt-2.5 flex items-center gap-2">
@@ -372,7 +374,8 @@ function AdhkarCategoryList({
   onSetCount: (itemId: string, next: number) => void;
   onToggleFavorite: (id: string) => void;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
+  const numStr = (v: number) => (locale === "ar" ? toArabicIndic(v) : String(v));
   const [query, setQuery] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [reciting, setReciting] = useState(false);
@@ -438,8 +441,8 @@ function AdhkarCategoryList({
             </span>
             <span className="mt-1 block text-xs font-bold text-muted">
               {t("adhkar.completedCount", {
-                n: items.filter((item) => countOf(item) >= (item.count ?? 1)).length,
-                total: items.length,
+                n: numStr(items.filter((item) => countOf(item) >= (item.count ?? 1)).length),
+                total: numStr(items.length),
               })}
             </span>
           </span>
@@ -542,7 +545,8 @@ function DhikrCard({
   onToggleFavorite: (id: string) => void;
   delay: number;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
+  const numStr = (v: number) => (locale === "ar" ? toArabicIndic(v) : String(v));
   const target = item.count ?? 1;
   const isMulti = target > 1;
   const done = current >= target;
@@ -570,7 +574,7 @@ function DhikrCard({
   };
   const actionLabel = `${done ? t("adhkar.doneToday") : t("adhkar.markDone")} â€” ${t(
     "adhkar.progress",
-    { current, total: target }
+    { current: numStr(current), total: numStr(target) }
   )}`;
 
   return (
@@ -587,7 +591,7 @@ function DhikrCard({
           </span>
           {isMulti && (
             <span className="num-ltr rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-black tabular-nums text-muted">
-              {t("adhkar.multiplier")}{target}
+              {t("adhkar.multiplier")}{numStr(target)}
             </span>
           )}
         </div>
@@ -664,9 +668,9 @@ function DhikrCard({
                   : "bg-gold-soft text-gold-strong hover:bg-gold hover:text-primary-deep"
               }`}
             >
-              <span className="text-xl font-black leading-none tabular-nums">{current}</span>
+              <span className="text-xl font-black leading-none tabular-nums">{numStr(current)}</span>
               <span className="num-ltr mt-1 text-[10px] font-bold opacity-70 tabular-nums">
-                {target}
+                {numStr(target)}
               </span>
             </button>
           </div>

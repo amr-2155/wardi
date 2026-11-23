@@ -50,6 +50,13 @@ export default function Page() {
      the seen-flag itself, so dismissing it can never reopen it. */
   const [showOnboarding, setShowOnboarding] = useState(() => !loadOnboarding().seen);
 
+  /* Every screen is a full-page swap, not a route change, so the browser keeps
+     the previous page's scroll offset. Without this, opening a detail screen
+     from a scrolled list lands halfway down it with the title already gone. */
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab, view, quranRoute]);
+
   /* Home-screen widget deep link: a widget tap opens MainActivity with a
      `wardi_open` extra; open the prayer screen immediately. */
   useEffect(() => {
@@ -103,6 +110,16 @@ export default function Page() {
               data={data}
               quran={quran}
               onBack={() => setView(null)}
+              onGoReflection={() => {
+                setView(null);
+                setTab("home");
+                setShowTadabbur(true);
+              }}
+              onReview={() => {
+                setView(null);
+                setTab("history");
+              }}
+              onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
               initialMode={mushafMode}
             />
           );
@@ -154,6 +171,7 @@ export default function Page() {
                   setView(v);
                 }}
                 onOpenTadabbur={() => setShowTadabbur(true)}
+                onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
               />
             )}
             {tab === "history" && <HistoryView data={data} />}

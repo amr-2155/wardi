@@ -1,6 +1,6 @@
 "use client";
 
-import { BookMarked } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useState } from "react";
 import { AyahActionBar } from "@/components/quran";
 import { TadabburSection } from "@/components/views/TadabburSection";
@@ -26,7 +26,8 @@ export function TadabburSheet({
 }) {
   const { t } = useLocale();
   const [copied, setCopied] = useState(false);
-  const ayahId = quran.daily?.ref ?? "";
+  // A finished ward's reflection is grounded in the pages actually read.
+  const ayahId = quran.reflectionAyah || quran.daily?.ref || "";
   const resolved = quran.getAyah(ayahId);
 
   /* A daily ayah and a loaded dataset are all that is required. This used to
@@ -100,8 +101,8 @@ export function TadabburSheet({
           onClick={() => onOpenAyah(ayahId)}
           className="mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface-2 text-[11px] font-bold text-ink transition active:scale-95"
         >
-          <BookMarked size={15} />
-          فتح صفحة الآية كاملة
+          <BookOpen size={15} />
+          {t("tadabbur.fullTafsir")}
         </button>
 
         {copied && (

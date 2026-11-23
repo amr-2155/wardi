@@ -16,24 +16,28 @@ npm run audit      # fails on high/critical issues in production deps
 
 `npm run audit` deliberately ignores dev-only tooling: ESLint, the Tailwind
 PostCSS plugins and the Capacitor CLI are build-time only and never ship in the
-APK. The tree currently reports zero advisories. The `overrides` entry pins the
-`uuid` version that Capacitor's iOS-only `xcode` helper pulls in — this project
-ships Android, so that path never runs, but its stale pin still surfaced in
-audits.
+APK. No high/critical advisories remain; three moderate dev-tooling advisories
+are outside the shipped APK and excluded by design. The `overrides` entry pins
+the `uuid` version that Capacitor's iOS-only `xcode` helper pulls in — this
+project ships Android, so that path never runs, but its stale pin still surfaced
+in audits.
 
-The stack is pinned to Next.js 16.4.3 and Capacitor 8.5.3 — the releases that
-clear the 16.x RCE advisories and the Capacitor proxy advisory
-(`GHSA-rvm3-566m-v7fv`, remote content reachable at the app origin inside the
-WebView). The static export made the image-optimizer advisories unreachable,
-but the WebView one shipped in the APK.
+The stack is pinned to Next.js 16.4.6 and Capacitor 8.5.3 — the releases that
+clear the 16.x RCE advisories (`GHSA-mfr8-8qww-v76h`, `GHSA-vc7v-qv4w-wrv8`)
+and the Capacitor proxy advisory (`GHSA-rvm3-566m-v7fv`, remote content
+reachable at the app origin inside the WebView). The static export made the
+image-optimizer advisories unreachable, but the WebView one shipped in the APK.
 
-`npm test` runs seventeen harnesses that compile and import the real source
+`npm test` runs twenty harnesses that compile and import the real source
 modules with the project compiler, so a passing run means the shipped code
 behaves:
 
 | Harness                   | Covers                                        |
 | ------------------------- | --------------------------------------------- |
 | `scripts/test-ward.mjs`   | ward/page math, rollover, storage              |
+| `scripts/test-ward-p0.mjs` | no false/duplicate completion; 25 pages = 25 pages; restart persistence |
+| `scripts/test-ward-carryover.mjs` | three unfinished-ward choices, multi-day dates, no silent merge |
+| `scripts/test-reflection.mjs` | reflection ayah grounded in pages actually read, no repeats |
 | `scripts/test-quran.mjs`  | Quran loading, caching, offline fallback       |
 | `scripts/test-offline.mjs`| network retry, error classification, fail-stop |
 | `scripts/test-audio.mjs`  | audio playback recovery                        |
@@ -155,22 +159,31 @@ in both Arabic and English. The status lines under the time picker use the same
 dictionary (`settings.reminderStatus.*`), so Settings follows the selected
 language like the other main views.
 
-**Not yet verified on hardware.** The scheduling calls, permission handling,
-boot restoration, and exact-alarm behaviour have been compiled, packaged, and
-inspected in the APK, but no physical-device run has confirmed a notification
-actually arrives. Treat delivery as unproven until someone runs it on a device.
+**Device check (2026-11-18).** On the paired Android device the OS notification
+store held the scheduled daily reminder `id=5001` — «وردك اليوم 25 صفحة: من صفحة
+46 إلى 70» at `2026-11-18T05:03:00.000Z` on channel `wardi_ward_reminder` — and
+the app launched without fatal errors. That proves the schedule survives a
+reinstall with `-r` (user data preserved); the alarm *ringing audibly* at that
+minute was not observed in this session, so audible delivery remains unverified.
 
 ## Tafsir
 
 The ayah menu renders tafsir from two paths, in that order of trust.
 
-1. **A reviewed source pack** (`src/data/quran/tafsir-rich.json`). Ten ayahs are
-   covered today: Al-Fatiha 1:1–1:7 plus 2:255, 2:285 and 2:286. Each entry is
+1. **A reviewed source pack** (`src/data/quran/tafsir-rich.json`). Ten ayahs
+   carry full articles: Al-Fatiha 1:1–1:7 plus 2:255, 2:285 and 2:286. Each is
    an article, not a stub — overview, vocabulary, context, revelation,
    detailed explanation, benefits, scholarly views, application, reflection,
    du'a and summary — and carries the source edition and review date it was
    checked against. The pack never stores the verse text: the panel prints the
    verse resolved from the canonical dataset, so the two cannot disagree.
+   A second, derived pack (`src/lib/tafsir/summary.ts`) promotes the 24
+   human-reviewed entries of the original `tafsir.json` into the same renderer,
+   skipping the two already covered by full articles. That yields **32 reviewed
+   ayahs** in total without writing a single new line of interpretation: the
+   original "how to live" steps land in a separately labelled `practice` field
+   so they are never passed off as scholarly exposition. Both packs are
+   validated before display (`scripts/test-tafsir-engine.mjs`, C6).
 2. **An optional operator-deployed proxy.** `NEXT_PUBLIC_TAFSIR_AI_URL` points
    at a trusted server; the static bundle holds no model key and calls no vendor
    directly. Generated output is validated before display (JSON shape, same
@@ -179,9 +192,14 @@ The ayah menu renders tafsir from two paths, in that order of trust.
 
 When neither path applies, the panel states the reason — no reviewed source, AI
 disabled, missing dataset, or an unknown reference — instead of inventing
-commentary. `generateTafsirLive` exists for the proxy path, but no screen calls
-it yet: today the shipped app is curated-only. `scripts/test-tafsir-engine.mjs`
-gates the prompt, the pack's validity and every degradation path.
+commentary. The proxy path is now **wired**: the ayah screen and the ayah action
+sheet show an explicit "Generate AI tafsir" action only when
+`NEXT_PUBLIC_TAFSIR_AI_URL` is configured (`isTafsirAIEnabled`). Nothing calls
+the network on render; a stale in-flight result is discarded when the ayah
+changes; a failed or unavailable generation keeps the honest empty state.
+Without a proxy, the shipped app remains curated-only by design.
+`scripts/test-tafsir-engine.mjs` gates the prompt, both packs, the wiring and
+every degradation path.
 
 ## Home-screen widgets
 
@@ -197,9 +215,10 @@ widgets roll the date and the countdown over midnight with the app closed.
 change, clock change and timezone change. A widget tap deep-links back into the
 prayer screen (`src/lib/widgetNavigation.ts`).
 
-**Not yet verified on hardware.** The receivers, layouts and refresh alarms have
-been compiled and packaged, but no launcher run has confirmed rendering,
-resizing and the countdown on a device.
+**Device check (2026-11-18).** The launcher held a live
+`WardiPrayerWidgetStrip` instance (`id=46`) with populated `RemoteViews`, and the
+receivers are registered in the manifest. Pixel-level layout/resizing and the
+live countdown were not screenshotted, so visual polish is still unconfirmed.
 
 ## Adhkar audio
 
@@ -238,14 +257,21 @@ the plugin's own manifest through Gradle manifest merging, so they do not appear
 in `android/app/src/main/AndroidManifest.xml`. To confirm they were merged, read
 `android/app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml`.
 
+The app never changes the system screen timeout. On the verification device it
+was left at its existing `1800000` ms (30 minutes) setting, as chosen by the
+user. The identical `1800000` in the widget XML is `updatePeriodMillis` — an
+unrelated widget refresh interval, not a display setting.
+
 ## Known limitations
 
-- Reminder delivery and widget rendering are unverified on real devices (see
-  above). The build and harnesses prove the schedule and the payload, not that
-  an alarm rings or a launcher repaints.
-- Tafsir covers ten reviewed ayahs. The live generator is unwired and
-  unconfigured by default, so every other ayah shows the honest "no reviewed
-  source" state.
+- On-device checks confirmed the scheduled reminder and a live widget instance
+  after reinstall (see above), but an audible alarm at the scheduled minute and
+  the widget's pixel-level rendering were not observed.
+- Tafsir covers 32 reviewed ayahs (10 full articles + 22 promoted reviewed
+  summaries). The live generator is wired but unconfigured by default: without
+  an operator-deployed `NEXT_PUBLIC_TAFSIR_AI_URL`, every other ayah shows the
+  honest "no reviewed source" state. Supplying a reviewed source pack remains
+  the only offline way to widen coverage further.
 - Topic-name normalization is inconsistent: 26 references across 6 topics cannot
   be reached by search. Left as-is; it is unrelated to the data-integrity work.
 - Localization is broad but not total. Home, Plan, Stats, Settings, History,

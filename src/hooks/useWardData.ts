@@ -18,6 +18,7 @@ import {
 } from "@/lib/backup";
 import {
   DEFAULT_SETTINGS,
+  type CarryoverChoice,
   type DayProgress,
   type ManualOverride,
   type Reading,
@@ -25,7 +26,14 @@ import {
   type ThemeMode,
   type WardSettings,
 } from "@/lib/types";
+import { clearSession } from "@/lib/quran/mushafSession";
 import {
+  applyCarryoverDecision,
+  carryoverState,
+  type CarryoverState,
+} from "@/lib/carryover";
+import {
+  canCompleteToday,
   computeBestStreak,
   effectiveDailyPages,
   khatmaProgressPercent,
@@ -33,6 +41,7 @@ import {
   pageRange,
   planFreezeUse,
   resumeStartPage,
+  tomorrowStartPage,
   wardPagesAvailable,
   type IncreaseInfo,
 } from "@/lib/ward";
@@ -95,6 +104,10 @@ export type WardData = {
   khatmaPercent: number;
   streak: number;
   bestStreak: number;
+  /** Persisted unfinished-ward ledger with the three-way decision state. */
+  carryover: CarryoverState;
+  /** Apply an explicit choice to unfinished wards (optionally just one). */
+  applyCarryover: (choice: CarryoverChoice, onlyId?: string) => void;
   /** Unspent streak-freeze shields (earned per 7-day best streak, max 3). */
   shieldsLeft: number;
   totalRead: number;
@@ -153,6 +166,13 @@ export function useWardData(): WardData {
     historyRef.current = history;
   }, [history]);
 
+  /* Mirrors the committed "pages read today" count synchronously. React state
+     updates are async: the reader mirrors the confirmed-page count through
+     setProgressValue immediately before calling completeToday in the same tick,
+     so completeToday must read a ref rather than the render-scoped `progress`
+     (which would still hold the previous value and reject a genuine finish). */
+  const progressRef = useRef(0);
+
   /* eslint-disable react-hooks/set-state-in-effect -- initial hydration-safe load from localStorage */
   useEffect(() => {
     const data = loadData();
@@ -168,6 +188,8 @@ export function useWardData(): WardData {
     setSettings(resumedSettings);
     setHistory(data.history);
     setProgress(data.progress);
+    progressRef.current =
+      data.progress && data.progress.date === todayKey() ? data.progress.pages : 0;
     setLoaded(true);
     applyThemeClass(resumedSettings.theme);
     applyAccentClass(loadAccent());
@@ -332,6 +354,42 @@ export function useWardData(): WardData {
   );
 
   const dailyPages = useMemo(() => effectiveDailyPages(settings, today), [settings, today]);
+
+  /* Unfinished wards from previous days. Unlike the transient `backlog` below,
+     these records carry the user's decision and are persisted on the day's own
+     `Reading`. Only the current khatma is offered — an older khatma's debt must
+     not be silently charged to a new plan. */
+  const carryover = useMemo(
+    () => carryoverState(history, today, settings.khatmaNumber),
+    [history, today, settings.khatmaNumber]
+  );
+
+  const applyCarryover = useCallback(
+    (choice: CarryoverChoice, onlyId?: string) => {
+      const result = applyCarryoverDecision({
+        history,
+        today,
+        khatma: settings.khatmaNumber,
+        choice,
+        baseTarget: dailyPages,
+        onlyId,
+      });
+      if (!result.changed) return;
+      setHistory(result.history);
+      /* "Add to today" raises today's target by the exact unread amount. Using
+         the existing manual-override slot keeps one target source of truth and
+         gets persistence/backup for free. Continue and postpone never alter
+         the target. */
+      if (choice === "add") {
+        setSettings((prev) => ({
+          ...prev,
+          manualOverride: { date: today, pages: result.adjustedTarget },
+        }));
+      }
+    },
+    [history, today, settings.khatmaNumber, dailyPages]
+  );
+
   const startPage = Math.min(settings.totalPages, Math.max(1, settings.currentPage));
   const range = useMemo(() => pageRange(startPage, dailyPages, settings.totalPages), [
     startPage,
@@ -376,9 +434,17 @@ export function useWardData(): WardData {
      ended: an unfinished day folds its remainder into the next ward instead of
      replaying the same pages. Mirrors `resumeStartPage`, which applies the same
      rule across a real day boundary. */
-  const tomorrowStart = isDone
-    ? range.next
-    : Math.min(settings.totalPages, range.start + todayProgress);
+  /* `completeToday` has already moved currentPage to the first unread page, so
+     a settled day must use the advanced range's START. Taking `range.next`
+     here skipped a whole ward in the 100% screen's "tomorrow" line. */
+  const tomorrowStart = tomorrowStartPage({
+    completedToday: !!todayReading?.completed,
+    isDone,
+    advancedStart: range.start,
+    nextAfterToday: range.next,
+    resumeStart: range.start + todayProgress,
+    totalPages: settings.totalPages,
+  });
   const tomorrowRange = pageRange(tomorrowStart, tomorrowPages, settings.totalPages);
 
   const khatmaPercent = useMemo(
@@ -541,6 +607,13 @@ export function useWardData(): WardData {
     (from: number, pages: number) => {
       const to = Math.min(settings.totalPages, from + pages - 1);
       const count = Math.max(1, to - from + 1);
+      /* A freshly applied ward must never inherit an old reader session. The
+         session was keyed only by the numeric range, so re-applying the same
+         range on a later day could resurrect a previously "completed" recorded
+         set and show the ward finished on first open. Clearing it here makes
+         the reader start from an empty confirmed set for the new target. */
+      clearSession();
+      progressRef.current = 0;
       setHistory((prev) => {
         const entry: Reading = {
           id: today,
@@ -592,6 +665,7 @@ export function useWardData(): WardData {
       // Clamp to the pages that actually exist today, not the scheduled ward,
       // so a final-day read cannot record pages past the end of the mushaf.
       const next = Math.max(0, Math.min(Math.floor(pages), todayPages));
+      progressRef.current = next;
       setProgress({ date: today, pages: next });
       const mode: ReadingMode =
         settings.manualOverride && settings.manualOverride.date === today ? "manual" : "auto";
@@ -656,6 +730,14 @@ export function useWardData(): WardData {
     // incomplete entry (from partial reading or setTodayWard) is upgraded here
     // rather than silently short-circuiting the completion.
     if (todayReading?.completed) return;
+    // Logic-level root-cause fix: a ward may close only after its pages were
+    // actually recorded. The reader mirrors the confirmed count through
+    // setProgressValue on the same tick before calling this, so `progressRef`
+    // is authoritative here (the state value is still a render behind).
+    // This blocks the old "select 1-25, tap finish on page 1" false completion
+    // while preserving a genuine final-page finish and an explicitly entered
+    // manual page count.
+    if (!canCompleteToday(progressRef.current, todayPages)) return;
     const reading: Reading = {
       id: todayReading?.id ?? today,
       date: today,
@@ -713,7 +795,10 @@ export function useWardData(): WardData {
         dailyPages: !s.autoIncrease ? Math.max(1, s.dailyPages - bump) : s.dailyPages,
       };
     });
-    if (progress && progress.date === last.date) setProgress(null);
+    if (progress && progress.date === last.date) {
+      progressRef.current = 0;
+      setProgress(null);
+    }
   }, [history, progress]);
 
   const startNewKhatma = useCallback(() => {
@@ -749,6 +834,7 @@ export function useWardData(): WardData {
       khatmaNumber: prev.khatmaNumber + 1,
       currentPage: 1,
     }));
+    progressRef.current = 0;
     setProgress(null);
   }, [settings, history, today]);
 
@@ -760,6 +846,7 @@ export function useWardData(): WardData {
     const leftover = clearAllData();
     setSettings({ ...DEFAULT_SETTINGS });
     setHistory([]);
+    progressRef.current = 0;
     setProgress(null);
     applyThemeClass(DEFAULT_SETTINGS.theme);
     // Surfaced so the UI (and tests) can assert the reset really reached a
@@ -792,6 +879,8 @@ export function useWardData(): WardData {
     setSettings(plan.settings);
     setHistory(plan.history);
     setProgress(plan.progress);
+    progressRef.current =
+      plan.progress && plan.progress.date === todayKey() ? plan.progress.pages : 0;
     applyThemeClass(plan.settings.theme);
     return true;
   }, []);
@@ -824,6 +913,8 @@ export function useWardData(): WardData {
     increaseInfo,
     backlog,
     catchUp,
+    carryover,
+    applyCarryover,
     updateSetting,
     toggleAutoIncrease,
     setManualOverride,

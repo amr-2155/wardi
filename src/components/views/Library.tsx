@@ -177,7 +177,7 @@ export function LibraryView({
         <div className="mt-4">
           <SegmentControl<"verses" | "audio">
             options={[
-              { value: "verses", label: t("library.searchTab") },
+              { value: "verses", label: t("library.versesTab") },
               { value: "audio", label: t("library.audioTab") },
             ]}
             value={subSection}

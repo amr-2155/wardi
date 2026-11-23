@@ -6,6 +6,7 @@ import { subscribeConnectivity } from "@/lib/net/connectivity";
 import type { AyahMeta, QuranDataset, QuranSearchResult, TafsirEntry, WardProgress } from "@/lib/quran/types";
 import { getRelatedAyahs } from "@/lib/quran/relations";
 import { getTafsir, tadabburPool } from "@/lib/quran/tafsir";
+import { pickReflectionFromPages } from "@/lib/quran/reflection";
 import { getDailyAyah, dateKeyOf } from "@/lib/quran/daily";
 import { searchWithIndex, buildSearchIndex, getVerseTopics } from "@/lib/quran/search";
 import { loadAyahMeta, loadHashes } from "@/lib/quran/store";
@@ -72,6 +73,14 @@ export type QuranData = {
   markPageRead: (countPages: number) => void;
   /** Mark the whole Quran-side ward read (advances to the next ward). */
   completeWard: () => void;
+  /**
+   * Reflection ayah chosen from the pages actually read in today's completed
+   * ward (null until a ward is finished). The reflection UI prefers this over
+   * the hash-of-day `daily.ref`.
+   */
+  reflectionAyah: string | null;
+  /** Choose the reflection ayah from the confirmed printed pages of a ward. */
+  setWardReflection: (pages: number[]) => void;
 };
 
 export function useQuran(args?: { dailyPages?: number; totalPages?: number }): QuranData {
@@ -406,7 +415,40 @@ export function useQuran(args?: { dailyPages?: number; totalPages?: number }): Q
     });
   }, [dataset]);
 
+  /* Called by the reader when a ward genuinely completes. Picks one authentic
+     ayah from the exact printed pages the user confirmed and stores it on today's
+     progress so the reflection card/sheet never point at an unread surah. The
+     chosen ayah is pushed into history so the next ward reflects on a new one. */
+  const setWardReflection = useCallback(
+    (pages: number[]) => {
+      if (!dataset || !meta || !pages.length) return;
+      const pool = tadabburPool(TAFSIR, dataset);
+      setProgress((prev) => {
+        if (!prev) return prev;
+        const ref = pickReflectionFromPages({
+          dataset,
+          meta,
+          pool,
+          pages,
+          history: prev.tadabburHistory,
+        });
+        if (!ref) return prev;
+        const next: WardProgress = {
+          ...prev,
+          reflectionPages: [...new Set(pages)].sort((a, b) => a - b),
+          reflectionAyah: ref,
+          tadabburHistory: [ref, ...prev.tadabburHistory.filter((r) => r !== ref)].slice(0, 32),
+        };
+        saveQuranProgress(next);
+        return next;
+      });
+    },
+    [dataset, meta]
+  );
+
   const dailyReady = Boolean(dataset && daily && daily.date === dateKeyOf(new Date()));
+  const reflectionAyah =
+    progress && progress.date === today ? (progress.reflectionAyah ?? null) : null;
 
   return useMemo(
     () => ({
@@ -432,6 +474,8 @@ export function useQuran(args?: { dailyPages?: number; totalPages?: number }): Q
       deferTadabbur,
       markPageRead,
       completeWard,
+      reflectionAyah,
+      setWardReflection,
     }),
     [
       loaded,
@@ -456,6 +500,8 @@ export function useQuran(args?: { dailyPages?: number; totalPages?: number }): Q
       deferTadabbur,
       markPageRead,
       completeWard,
+      reflectionAyah,
+      setWardReflection,
     ]
   );
 }

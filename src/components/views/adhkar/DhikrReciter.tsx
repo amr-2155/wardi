@@ -194,7 +194,7 @@ export function DhikrReciter({
   /* Off-by-one: the old expression showed (n-1)/n on the final card and never
      reached 100%, while the counter beside it read n/n. */
   const pct = ((index + 1) / items.length) * 100;
-  const counter = t("adhkar.progress", { current: String(index + 1), total: String(items.length) });
+  const counter = t("adhkar.progress", { current: digits.format(index + 1), total: digits.format(items.length) });
 
   return (
     <div className="mt-5 animate-fade-up">
@@ -257,7 +257,7 @@ export function DhikrReciter({
               </span>
               {target > 1 && (
                 <span className="num-ltr rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-black tabular-nums text-muted">
-                  {t("adhkar.progress", { current: String(current), total: String(target) })}
+                  {t("adhkar.progress", { current: digits.format(current), total: digits.format(target) })}
                 </span>
               )}
               <span className="ms-auto rounded-full bg-gold-soft px-2.5 py-1 text-[11px] font-black text-gold-strong">
@@ -382,7 +382,7 @@ export function DhikrReciter({
           {t("adhkar.prev")}
         </button>
         <span className="num-ltr min-w-12 text-center text-xs font-black tabular-nums text-muted">
-          {index + 1}/{items.length}
+          {digits.format(index + 1)}/{digits.format(items.length)}
         </span>
         <button
           type="button"

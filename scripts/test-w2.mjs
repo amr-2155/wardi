@@ -134,7 +134,18 @@ const W2_FILES = W2_VIEWS.map((rel) => {
    reader happens to be on. Opening, saving, or landing on the last page no
    longer completes a ward; only confirming every page in the range does. The
    reader also counts against the planned range and resets the set when the
-   range changes. Behaviour is covered by scripts/test-ward.mjs. */
+   range changes. Behaviour is covered by scripts/test-ward.mjs.
+
+   Re-pinned 2026-11-17 (Wardi reliability pass): deliberate, additive changes
+   only — (1) reflection is grounded in recorded pages via setWardReflection;
+   (2) the completion screen gained two navigation CTAs; (3) auto-scroll now
+   offers exactly four numbered speeds 1–4 mapped onto the stored decimals;
+   (4) the header shows the full Surah name; (5) the footer chip is an explicit
+   Wird progress indicator (done/total); (6) the finish-button completion path
+   now shares the record path's false->true edge guard so a repeat press can
+   never recount or replay the celebration (covered by P0-19). No counting or
+   completion semantics were otherwise altered; those are covered by
+   test-ward.mjs, test-ward-p0.mjs and test-reflection.mjs. */
 const FROZEN_HASHES = {
   "src/lib/quran/search.ts": "F3884270DDC7F6FF",
   "src/lib/wardReminder.ts": "58F592421CED19A1",
@@ -171,7 +182,26 @@ const FROZEN_HASHES = {
      band below the sheet (so it can never overlap a verse), and a small
      progress pointer joined the footer. UI-only; the reading and counting
      lifecycle is unchanged and covered by scripts/test-ward.mjs. */
-  "src/components/views/MushafReader.tsx": "0b9df3cbfdaa4336",
+  /* Re-pinned 2026-11-22 (reader UI overhaul): removed every bottom
+     transport/guide row — including the audio transport — and moved all of
+     their actions, plus the old "more" sheet, into one circular FAB and a
+     dismissible floating panel. The header keeps an always-visible surah/
+     juz pill; the printed page number is a single gold-framed tab in the safe
+     foot band; text size gained its own A-/A/A+ preview sheet and owns the fit
+     chips; tafsir opens inside the reader with an optional full-ayah route.
+     Counting, completion, carryover, reflection grounding and the four
+     auto-scroll speeds are untouched (test-ward-p0.mjs, test-reflection.mjs,
+     test-immersive.mjs). No hardcoded Arabic was added. */
+   /* Re-pinned 2026-11-22 (lint cleanup): the four decorative/measurement
+      page images use next/image with unoptimized=true, preserving the exact
+      /quran/pages/*.webp URLs, natural 1024x1656 glyph measurements and the
+      1px preloaders. Lint-only: no reader behaviour or counting change. */
+  "src/components/views/MushafReader.tsx": "c7a82a8bf3211591",
+   /* Re-pinned 2026-11-18 (missing-change audit): a manual swipe or page flip
+      no longer silently resumes auto-scroll — only the explicit Resume control
+      does; a wheel/trackpad interaction pauses the same way; and completion for
+      a custom page range now grounds the reflection in the pages actually read.
+      Counting and completion semantics are untouched (test-ward-p0.mjs). */
 };
 
 /* Frozen logic modules. These own data, scheduling and audio, none of which
@@ -487,7 +517,7 @@ const ARABIC_INVENTORY = {
   "src/components/ProgressRing.tsx":
     "out of the approved W2 scope: shared aria-label",
   "src/components/TadabburSheet.tsx":
-    "out of the approved W2 scope: share template, open-ayah label, copy notice",
+    "out of the approved W2 scope: copy notice (the full-tafsir CTA is now localized)",
 };
 
 function arabicFilesIn(dir, out = []) {

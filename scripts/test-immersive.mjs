@@ -62,12 +62,16 @@ check("I3: a tap on the page toggles the tools", () => {
   assert.match(fn, /else showChrome\(\);/, "a tap must open closed tools");
 });
 
-check("I4: the page number belongs to the chrome-hidden reading surface", () => {
-  /* The header carries the surah/juz/hizb line only; the printed-mushaf page
-     number sits at the foot of the page, and the footer carries it when the
-     tools are up. Both are never on screen at once. */
-  assert.match(reader, /\{page !== null && !chrome && !celebration &&/,
-    "the page number must appear only while the tools are away");
+check("I4: the framed page number stays visible on the reading surface", () => {
+  /* The header carries surah + juz/hizb; the printed-mushaf number is a calm
+     paper tab at the foot of the page. It no longer disappears with the chrome
+     (or reappears as a second floating pill) — there is exactly one mark. */
+  assert.match(reader, /\{page !== null && !celebration && \(/,
+    "the page number must not depend on the chrome being hidden");
+  assert.match(reader, /className="mushaf-page-number /,
+    "the page mark must be the styled folio tab");
+  const css = read("src/app/globals.css");
+  assert.match(css, /\.mushaf-page-number\{/, "the folio tab needs a real style rule");
   assert.doesNotMatch(reader, /\{pill && !chrome/, "no second, competing page pill");
 });
 
@@ -80,12 +84,16 @@ check("I5: header and footer are absolute overlays above the page", () => {
 });
 
 check("I6: hidden tools are untouchable and out of the a11y tree", () => {
+  /* The header itself stays live because its centred position pill must always
+     be readable. The four pieces that do fade out — back, close, the progress
+     footer and the floating FAB — must each leave both the touch and the a11y
+     tree, or a tap on the page could hit an invisible control. */
   const hidden = reader.match(/pointer-events-none[^"`]*opacity-0/g) ?? [];
-  assert.ok(hidden.length >= 2, "both bars need a hidden state");
+  assert.ok(hidden.length >= 4, "every fading control needs a hidden state");
   const inert = reader.match(/inert=\{!chrome\}/g) ?? [];
-  assert.equal(inert.length, 2, "both bars must be inert while hidden");
+  assert.equal(inert.length, 4, "back, close, footer and FAB must be inert while hidden");
   const aria = reader.match(/aria-hidden=\{!chrome\}/g) ?? [];
-  assert.equal(aria.length, 2, "both bars must be aria-hidden while hidden");
+  assert.equal(aria.length, 4, "back, close, footer and FAB must leave the a11y tree while hidden");
 });
 
 /* ---- the reserved band: an overlay must never cover a line ---- */
@@ -132,6 +140,87 @@ check("I11: an edge swipe reveals the system bars only transiently", () => {
   assert.match(src, /WindowCompat\.getInsetsController/, "insets controller");
   assert.match(src, /extends BridgeActivity/, "must stay a Capacitor activity");
   assert.match(src, /super\.onCreate\(savedInstanceState\)/, "must not replace Capacitor's setup");
+});
+
+check("I12: the footer is a progress line, not a second navigation bar", () => {
+  const footer = reader.slice(reader.indexOf("<footer"), reader.indexOf("</footer>"));
+  for (const token of [
+    "audio.currentTrack",
+    "skipVerse",
+    "goNextP",
+    "goPrevP",
+    "finishPage",
+    "jumpTo",
+    "handleListen",
+    "flowDown",
+    "flowUp",
+    "AUTO_SPEEDS",
+  ]) {
+    assert.ok(!footer.includes(token), `the footer must not own ${token} any more`);
+  }
+  assert.match(footer, /PROGRESS \+ WARD RANGE/, "the progress line is the one footer tool");
+  assert.match(footer, /role="progressbar"/, "progress must still be exposed to a11y");
+});
+
+check("I13: one circular FAB owns a dismissible floating tool panel", () => {
+  assert.match(reader, /data-tools-fab/, "a single FAB must open the tools");
+  assert.match(reader, /data-tools-panel/, "the circular tools need one floating panel");
+  assert.match(reader, /data-tools-overlay/, "an outside-click layer must close the panel");
+  assert.match(reader, /onClick=\{closeTools\}/, "outside click and X must both close");
+  assert.match(reader, /aria-label=\{t\("mushaf.tools"\)\}/, "the panel must be named");
+  assert.match(reader, /role="dialog"/, "the panel must be a modal dialog");
+  /* Every row tool moved here; none may be lost in the redesign. */
+  for (const key of [
+    "mushaf.textSize",
+    "mushaf.tafsir",
+    "mushaf.orientation",
+    "mushaf.appearance",
+    "mushaf.bookmarksShort",
+    "mushaf.autoScroll",
+    "mushaf.speedShort",
+    "mushaf.prevShort",
+    "mushaf.nextShort",
+    "mushaf.finishShort",
+    "mushaf.listen",
+    "mushaf.prevAyah",
+    "mushaf.nextAyah",
+    "mushaf.stopRecite",
+    "mushaf.followAudio",
+    "mushaf.toolIndex",
+    "mushaf.searchShort",
+    "mushaf.pageInfoShort",
+    "mushaf.wardInfo",
+    "mushaf.wardSetup",
+    "mushaf.modeShort",
+    "mushaf.reportShort",
+    "mushaf.flowUp",
+    "mushaf.flowDown",
+  ]) {
+    assert.ok(reader.includes(`t("${key}")`), `the tool panel is missing ${key}`);
+  }
+});
+
+check("I14: text size has a preview, A-/A/A+ and one owner for fit chips", () => {
+  assert.match(reader, /mushaf\.textPreview/, "a paper preview must show the current size");
+  assert.match(reader, /A−/, "smaller control");
+  assert.match(reader, /A\+/, "larger control");
+  assert.match(reader, /stepTextSize\(-1\)/, "smaller must actually change the fit");
+  assert.match(reader, /resetTextSize/, "A must reset to the whole page");
+  assert.match(reader, /stepTextSize\(1\)/, "larger must actually change the fit");
+  const fits = reader.match(/MUSHAF_FITS\.map/g) ?? [];
+  assert.equal(fits.length, 1, "fit chips must exist once, not in two sheets");
+});
+
+check("I15: exactly four calm auto-scroll speeds survive the redesign", () => {
+  const speeds = reader.match(/\{ level: \d, value: [\d.]+ \}/g) ?? [];
+  assert.equal(speeds.length, 4, "the four numbered speeds must not become a slider");
+  assert.match(reader, /AUTO_SPEEDS\.map/, "the speed sheet must render all four");
+});
+
+check("I16: tafsir opens inside the reader and can leave for a full ayah", () => {
+  assert.match(reader, /<TadabburSheet[\s\S]{0,240}onOpenAyah=\{handleOpenAyah\}/,
+    "the reader must render the grounded reflection sheet");
+  assert.match(reader, /onOpenAyah\?\.\(ayahId\)/, "the deep link must be optional");
 });
 
 console.log(`\nimmersive: ${passed}/${passed + failed} checks passed`);

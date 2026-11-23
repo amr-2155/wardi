@@ -24,13 +24,15 @@ import { PrayerBar } from "@/components/PrayerBar";
 import { Chip, NumberField, Sheet } from "@/components/ui";
 import { SurahBadge, VerseText } from "@/components/quran";
 import { formatLocaleDate, useLocale } from "@/lib/locale";
+import { toArabicIndic } from "@/lib/quran/mushaf";
 import { celebrateKhatma, celebrateWard } from "@/lib/haptics";
-import type { FullViewId, WardDay } from "@/lib/types";
+import type { CarryoverChoice, FullViewId, WardDay } from "@/lib/types";
 import type { ReaderMode } from "@/components/SegmentedControl";
 import type { WardData } from "@/hooks/useWardData";
 import type { QuranData } from "@/hooks/useQuran";
 import { defaultSession, saveLastPage, saveSession } from "@/lib/quran/mushafSession";
 import { DHIKR_CATEGORIES, DHIKR_ITEMS } from "@/data/adhkar";
+import { TAFSIR } from "@/data/quran";
 import { dayOfYear, isLastTenNights, isRamadan, seerahNext, todayHijri, upcomingOccasions } from "@/lib/hijri";
 
 export function HomeView({
@@ -38,14 +40,21 @@ export function HomeView({
   quran,
   onOpen,
   onOpenTadabbur,
+  onOpenAyah,
 }: {
   data: WardData;
   quran: QuranData;
   onOpen: (view: FullViewId, mushafMode?: ReaderMode) => void;
   onOpenTadabbur: () => void;
+  onOpenAyah: (ayahId: string) => void;
 }) {
   const { t, locale } = useLocale();
+  /* In Arabic UI Arabic-Indic digits are the norm (the reader uses them); Latin
+     digits interleaved with Arabic text look like a display bug, so user-visible
+     Arabic-locale numbers go through this helper. */
+  const numStr = (v: number) => (locale === "ar" ? toArabicIndic(v) : String(v));
   const [wardSheet, setWardSheet] = useState(false);
+  const [carryoverReviewOpen, setCarryoverReviewOpen] = useState(false);
   /* The ward is a RANGE (from → to), matching how it is written in the mushaf:
      "from page 1 to page 25". The count is derived, never typed, so the sheet
      cannot describe a range the reader will not actually open. */
@@ -91,6 +100,24 @@ export function HomeView({
     setWardSheet(false);
   };
 
+  /* Resolve an unfinished previous ward with one of the three explicit choices.
+     "Continue" opens the oldest leftover as its own ward (its original date is
+     preserved on the record); "add" raises today's target by the exact owed
+     amount; "postpone" stores the debt safely with no target change. */
+  const handleCarryover = (choice: CarryoverChoice) => {
+    if (choice === "continue") {
+      const first = data.carryover.pending[0] ?? data.carryover.postponed[0];
+      if (!first) return;
+      data.applyCarryover("continue", first.id);
+      const nextPage = Math.min(first.endPage, first.startPage + first.pagesRead);
+      if (nextPage <= first.endPage && first.remaining > 0) {
+        data.setTodayWard(nextPage, first.remaining);
+      }
+      return;
+    }
+    data.applyCarryover(choice);
+  };
+
   const override = data.settings.manualOverride;
   const hasOverride = override !== null && override.date === data.today;
   const planPages = data.settings.autoIncrease
@@ -102,8 +129,14 @@ export function HomeView({
     onOpenTadabbur();
   };
 
-  const dailyRef = quran.daily?.ref ?? "";
+  /* Prefer the reflection ayah chosen from the pages actually read in the
+     completed ward; fall back to the hash-of-day ayah before any ward finishes. */
+  const dailyRef = quran.reflectionAyah || quran.daily?.ref || "";
   const dailyResolved = quran.dailyReady && quran.daily ? quran.getAyah(dailyRef) : null;
+  /* Only curated entries carry a reviewed reflection question. When the
+     grounded ayah has no reviewed tafsir yet, the card simply omits the
+     question instead of inventing one. */
+  const dailyTafsir = TAFSIR.find((entry) => entry.ref === dailyRef) ?? null;
   const wardDay = quran.wardDay;
 
   const todayPercent = Math.max(0, Math.min(100, data.todayPercent));
@@ -145,11 +178,11 @@ export function HomeView({
   const streakPill = (
     <span className="flex items-center gap-1 rounded-2xl bg-orange-100 px-3 py-2 text-xs font-black text-orange-600 transition active:scale-95 dark:bg-orange-500/15 dark:text-orange-400">
       <Flame size={15} />
-      {data.streak}
+      {numStr(data.streak)}
       {data.shieldsLeft > 0 && (
         <span className="ms-1 flex items-center gap-0.5 rounded-full bg-white/60 px-1.5 py-0.5 text-[10px] text-orange-600 dark:bg-black/20 dark:text-orange-300">
           <Shield size={11} />
-          {data.shieldsLeft}
+          {numStr(data.shieldsLeft)}
         </span>
       )}
     </span>
@@ -203,16 +236,16 @@ export function HomeView({
             </button>
           </div>
           <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black">
-            {t("stats.khatmaN", { n: data.settings.khatmaNumber })}
+            {t("stats.khatmaN", { n: numStr(data.settings.khatmaNumber) })}
           </span>
         </div>
 
         <div className="relative mt-6 flex items-end justify-between gap-4">
           <div>
             <p className="text-[11px] text-white/55">{t("mushaf.wardFrom")}</p>
-            <p className="text-[44px] font-black leading-none">{data.startPage}</p>
+            <p className="text-[44px] font-black leading-none">{numStr(data.startPage)}</p>
             <p className="mt-1 text-[11px] text-white/55">
-              {t("home.to", { n: data.endPage })}
+              {t("home.to", { n: numStr(data.endPage) })}
             </p>
           </div>
           <ProgressRing
@@ -460,6 +493,11 @@ export function HomeView({
                   number: dailyResolved.verse.number,
                 })}
               </p>
+              {dailyTafsir?.reflection && (
+                <p className="mx-auto mt-3 max-w-[36ch] text-xs font-bold leading-7 text-primary">
+                  {dailyTafsir.reflection}
+                </p>
+              )}
             </div>
 
             {wardDay.deferred && !wardDay.tadabburDone && (
@@ -486,7 +524,7 @@ export function HomeView({
                 ) : (
                   <>
                     <Sparkles size={15} />
-                    {t("tadabbur.start")}
+                    {t("tadabbur.reflectCta")}
                   </>
                 )}
               </button>
@@ -501,6 +539,15 @@ export function HomeView({
                 </button>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => dailyRef && onOpenAyah(dailyRef)}
+              className="mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-surface-2 text-[11px] font-bold text-ink ring-1 ring-line transition active:scale-95"
+            >
+              <BookOpen size={15} />
+              {t("tadabbur.fullTafsir")}
+            </button>
           </div>
         </section>
       )}
@@ -549,7 +596,7 @@ export function HomeView({
           </span>
           <span>
             <span className="block text-lg font-black">
-              {data.streak}
+              {numStr(data.streak)}
               <span className="ms-1 text-[11px] font-bold text-muted">{t("home.dayStreak")}</span>
             </span>
             <span className="mt-0.5 block text-[10px] font-bold text-muted">
@@ -575,12 +622,12 @@ export function HomeView({
           size={46}
           stroke={5}
           label={
-            <span className="text-[10px] font-black text-primary">{data.khatmaPercent}%</span>
+            <span className="text-[10px] font-black text-primary">{numStr(data.khatmaPercent)}%</span>
           }
         />
         <span className="flex-1">
           <span className="block text-xs font-black">
-            {t("home.khatmaProgress", { n: data.settings.khatmaNumber })}
+            {t("home.khatmaProgress", { n: numStr(data.settings.khatmaNumber) })}
           </span>
           <span className="mt-0.5 block text-[10px] font-bold text-muted">
             {t("home.khatmaSub")}
@@ -609,26 +656,120 @@ export function HomeView({
         </div>
       )}
 
-      {/* BACKLOG BANNER — pages still owed from unsettled previous days */}
-      {data.backlog && (
-        <div className="mt-3 flex animate-fade-up items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3">
-          <CalendarDays size={18} className="shrink-0 text-primary" />
-          <div className="flex-1 text-[11px] font-bold">
-            <span>
-              {t("home.backlogLine", {
-                n: data.backlog.missedDays.length,
-                m: data.backlog.remainingPages,
-              })}
-            </span>
-            {data.catchUp && (
-              <span className="mt-0.5 block font-normal text-muted">
-                {t("home.catchUpLine", {
-                  n: data.catchUp.addPerDay,
-                  m: data.catchUp.days,
-                })}
-              </span>
-            )}
+      {/* CARRYOVER CARD — an unfinished previous ward needs an EXPLICIT choice.
+          Nothing is merged, deleted or double-counted until the user decides. */}
+      {data.carryover.all.length > 0 && (
+        <div className="mt-3 animate-fade-up rounded-[22px] border border-primary/30 bg-primary/5 p-3.5">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={18} className="shrink-0 text-primary" />
+            <span className="text-xs font-black">{t("home.carryoverTitle")}</span>
           </div>
+
+          {data.carryover.pending.length > 0 && (
+            <>
+              <p className="mt-2 text-[11px] font-bold leading-relaxed">
+                {t("home.carryoverIntro", {
+                  n: data.carryover.pending.length,
+                  m: data.carryover.pendingRemaining,
+                })}
+              </p>
+              <div className="mt-2 space-y-1">
+                {data.carryover.pending.slice(0, 4).map((w) => (
+                  <p key={w.id} className="text-[10px] leading-relaxed text-muted">
+                    {t("home.carryoverDay", {
+                      date: formatLocaleDate(locale, w.date),
+                      read: w.pagesRead,
+                      planned: w.plannedPages,
+                      remaining: w.remaining,
+                    })}
+                  </p>
+                ))}
+                {data.carryover.pending.length > 4 && (
+                  <p className="text-[10px] text-muted">+{data.carryover.pending.length - 4}</p>
+                )}
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => handleCarryover("continue")}
+                  className="w-full rounded-2xl bg-primary px-3 py-2.5 text-start transition active:scale-[0.98]"
+                >
+                  <span className="block text-xs font-black text-white">
+                    {t("home.carryoverContinue")}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] font-bold text-white/80">
+                    {t("home.carryoverContinueHint")}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCarryover("add")}
+                  className="w-full rounded-2xl bg-gold px-3 py-2.5 text-start transition active:scale-[0.98]"
+                >
+                  <span className="block text-xs font-black text-primary-deep">
+                    {t("home.carryoverAdd")}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] font-bold text-primary-deep/80">
+                    {t("home.carryoverAddHint", {
+                      base: data.dailyPages,
+                      extra: data.carryover.pendingRemaining,
+                      total: data.dailyPages + data.carryover.pendingRemaining,
+                    })}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCarryover("postpone")}
+                  className="w-full rounded-2xl bg-surface px-3 py-2.5 text-start shadow-sm transition active:scale-[0.98]"
+                >
+                  <span className="block text-xs font-black">{t("home.carryoverPostpone")}</span>
+                  <span className="mt-0.5 block text-[10px] font-bold text-muted">
+                    {t("home.carryoverPostponeHint")}
+                  </span>
+                </button>
+              </div>
+
+              <p className="mt-3 rounded-xl bg-surface px-3 py-2 text-[10px] leading-relaxed text-muted">
+                {t("home.carryoverCharity")}
+              </p>
+            </>
+          )}
+
+          {(data.carryover.postponed.length > 0 || data.carryover.resolved.length > 0) && (
+            <div className="mt-3 border-t border-line pt-2">
+              <button
+                type="button"
+                onClick={() => setCarryoverReviewOpen((v) => !v)}
+                className="flex w-full items-center justify-between text-[10px] font-black text-muted"
+              >
+                <span>{t("home.carryoverReview")}</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition ${carryoverReviewOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {carryoverReviewOpen && (
+                <div className="mt-2 space-y-1">
+                  {[...data.carryover.postponed, ...data.carryover.resolved].map((w) => (
+                    <div
+                      key={w.id}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-surface px-2 py-1.5 text-[10px]"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-muted">
+                        {formatLocaleDate(locale, w.date)} — {w.remaining}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 font-bold text-primary">
+                        {w.decision === "postpone"
+                          ? t("home.carryoverPostponedTag")
+                          : t("home.carryoverResolvedTag")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -27,6 +27,9 @@ export type WardSettings = {
 
 export type ReadingMode = "auto" | "manual";
 
+/** How the user chose to handle an unfinished ward day. */
+export type CarryoverChoice = "continue" | "add" | "postpone";
+
 export type Reading = {
   id: string;
   date: string;
@@ -44,6 +47,15 @@ export type Reading = {
   pages: number;
   completed: boolean;
   mode: ReadingMode;
+  /* ── Unfinished-ward carryover (optional, backward compatible) ──
+     Stored on the day's own record so the original date, planned range and
+     amount read are preserved. No separate key: backup/reset already cover
+     history, and an old record without these fields simply has no decision. */
+  carryoverDecision?: CarryoverChoice;
+  /** Date on which the user made the decision. */
+  carryoverDecisionDate?: string;
+  /** Today's adjusted target when "add remainder" was chosen (provenance). */
+  carryoverAdjustedTarget?: number;
 };
 
 export type DayProgress = {

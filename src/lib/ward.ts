@@ -22,6 +22,23 @@ export function effectiveDailyPages(settings: WardSettings, dayKey: string): num
   return plan;
 }
 
+/**
+ * Guard for the one write path that closes a ward day.
+ *
+ * The reader confirms every page through `recordWardPage` and mirrors the
+ * confirmed count into the app-level progress before calling `completeToday`.
+ * A manual "finish today" button, however, used to be able to call the same
+ * function at 0/25 and mark the day complete while the reader was still on
+ * page 1. Completion is now permitted only when the recorded progress has
+ * actually reached the real size of the ward. This is the logic-level fix for
+ * the false-completion bug, not a UI workaround.
+ */
+export function canCompleteToday(progressPages: number, todayPages: number): boolean {
+  if (!Number.isFinite(progressPages) || !Number.isFinite(todayPages)) return false;
+  const required = Math.max(1, Math.floor(todayPages));
+  return Math.max(0, Math.floor(progressPages)) >= required;
+}
+
 export type PageRange = { start: number; end: number; next: number };
 
 export function pageRange(start: number, pages: number, totalPages: number): PageRange {
@@ -72,6 +89,32 @@ export function resumeStartPage(
     return clamp(currentPage);
   }
   return Math.max(clamp(currentPage), clamp(latest.startPage + latest.pages));
+}
+
+/**
+ * Where tomorrow's ward starts, from the state the app actually holds.
+ *
+ * `completeToday` advances `settings.currentPage` to the first unread page as
+ * soon as the day is settled. The caller therefore sees an already-advanced
+ * range at the moment the completion screen renders: taking `range.next` of
+ * THAT range skips a whole ward (e.g. a 1-page ward on page 1 announced page 3
+ * tomorrow). A settled day uses the advanced start; a day whose target was met
+ * by manual progress (no `completeToday`) still sits on today's range, so the
+ * page after that block is the next one; an unfinished day resumes from the
+ * last page actually read.
+ */
+export function tomorrowStartPage(args: {
+  completedToday: boolean;
+  isDone: boolean;
+  advancedStart: number;
+  nextAfterToday: number;
+  resumeStart: number;
+  totalPages: number;
+}): number {
+  const total = Math.max(1, args.totalPages);
+  const clamp = (n: number): number => Math.min(total, Math.max(1, Math.round(n)));
+  if (!args.isDone) return clamp(args.resumeStart);
+  return clamp(args.completedToday ? args.advancedStart : args.nextAfterToday);
 }
 
 /**

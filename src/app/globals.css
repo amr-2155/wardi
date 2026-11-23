@@ -342,7 +342,8 @@ input[type=number]{appearance:textfield}
   background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
   color:var(--mink);
 }
-.mushaf-bar-top{border-bottom:1px solid color-mix(in oklab, var(--mgold) 26%, transparent)}
+/* No rule beneath the Surah heading: the title sits directly on the page. */
+.mushaf-bar-top{border-bottom:0}
 .mushaf-bar-bottom{border-top:1px solid color-mix(in oklab, var(--mgold) 26%, transparent)}
 /* The bars float over the page instead of framing it, so they must not read as
    opaque slabs pasted on: almost the paper colour plus a blur keeps the glyphs
@@ -398,6 +399,77 @@ input[type=number]{appearance:textfield}
     inset 0 1px 0 color-mix(in oklab, #fff 32%, transparent);
   -webkit-backdrop-filter:blur(12px) saturate(1.08);
   backdrop-filter:blur(12px) saturate(1.08);
+}
+
+/* The always-visible position pill is quiet paper with a gold hairline: a
+   full surah name on the first line, juz/hizb on the second. It never grows
+   into a card and never pushes the page around when the chrome hides. */
+.mushaf-position-pill{
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--mpaper-top) 94%, transparent),
+    color-mix(in oklab, var(--mpaper-bot) 88%, transparent));
+  border:1px solid color-mix(in oklab, var(--mgold) 40%, transparent);
+  box-shadow:
+    0 12px 28px -22px color-mix(in oklab, var(--mink) 80%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 26%, transparent);
+  -webkit-backdrop-filter:blur(10px) saturate(1.06);
+  backdrop-filter:blur(10px) saturate(1.06);
+}
+
+/* The printed page mark sits in the reserved foot band, not on the sheet: a
+   small framed paper tab, close to a mushaf folio number, with enough contrast
+   on every theme and no chance of covering a verse. */
+.mushaf-page-number{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:2.35rem;
+  height:1.9rem;
+  padding:0 .6rem;
+  border-radius:999px;
+  color:var(--mink);
+  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
+  border:1px solid color-mix(in oklab, var(--mgold) 52%, transparent);
+  box-shadow:
+    0 8px 20px -14px color-mix(in oklab, var(--mink) 85%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 30%, transparent);
+  -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(8px);
+}
+.mushaf-page-number:active{transform:scale(.94)}
+
+/* One circular FAB and one floating panel of circular tools. They are paper
+   surfaces over the sheet, never layout rows, so revealing them cannot reflow
+   the mushaf or move the reading position. */
+.mushaf-tools-fab{
+  color:var(--mink);
+  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
+  border:1px solid color-mix(in oklab, var(--mgold) 62%, transparent);
+  box-shadow:
+    0 16px 34px -16px color-mix(in oklab, var(--mink) 78%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 28%, transparent);
+  -webkit-backdrop-filter:blur(12px) saturate(1.08);
+  backdrop-filter:blur(12px) saturate(1.08);
+}
+.mushaf-tools-panel{
+  color:var(--mink);
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--mpaper-top) 97%, transparent),
+    color-mix(in oklab, var(--mpaper-bot) 94%, transparent));
+  border:1px solid color-mix(in oklab, var(--mgold) 46%, transparent);
+  box-shadow:
+    0 26px 60px -28px color-mix(in oklab, var(--mink) 90%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 24%, transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.08);
+  backdrop-filter:blur(18px) saturate(1.08);
+}
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-tools-fab,
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-tools-panel{
+  background:#0b0b0b;
+  border-color:#ffffff2b;
+  box-shadow:0 24px 54px -26px #000;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
 }
 
 

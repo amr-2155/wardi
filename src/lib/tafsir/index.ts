@@ -1,7 +1,7 @@
 import type { QuranDataset } from "@/lib/quran/types";
 import { generateTafsir, selectTafsir } from "./core";
 import { createRemoteProvider } from "./provider";
-import { RICH_TAFSIR } from "./sources";
+import { REVIEWED_TAFSIR } from "./sources";
 import type { TafsirResult } from "./types";
 
 export { TAFSIR_SYSTEM_PROMPT, TAFSIR_SYSTEM_PROMPT_VERSION } from "./systemPrompt";
@@ -11,7 +11,13 @@ export {
   validateGeneratedTafsir,
   validateRichTafsirEntry,
 } from "./core";
-export { getCuratedTafsir, RICH_TAFSIR, RICH_TAFSIR_META } from "./sources";
+export {
+  getCuratedTafsir,
+  getReviewedTafsir,
+  RICH_TAFSIR,
+  REVIEWED_TAFSIR,
+  RICH_TAFSIR_META,
+} from "./sources";
 export type {
   RichTafsirEntry,
   TafsirBenefit,
@@ -29,7 +35,7 @@ export function buildTafsirModel(ref: string, dataset: QuranDataset | null): Taf
   return selectTafsir({
     ref,
     dataset,
-    curated: RICH_TAFSIR,
+    curated: REVIEWED_TAFSIR,
     aiEnabled: Boolean(createRemoteProvider()),
   });
 }
@@ -42,7 +48,12 @@ export function generateTafsirLive(
   return generateTafsir({
     ref,
     dataset,
-    curated: RICH_TAFSIR,
+    curated: REVIEWED_TAFSIR,
     provider: createRemoteProvider(),
   });
+}
+
+/** Whether this build has a trusted proxy, so the UI can offer generation. */
+export function isTafsirAIEnabled(): boolean {
+  return Boolean(createRemoteProvider());
 }

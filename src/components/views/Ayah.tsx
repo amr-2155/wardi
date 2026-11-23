@@ -8,7 +8,8 @@ import { TafsirSections } from "@/components/TafsirSections";
 import { ScreenHeader } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { useLocale, type Locale } from "@/lib/locale";
-import { buildTafsirModel } from "@/lib/tafsir";
+import { buildTafsirModel, isTafsirAIEnabled } from "@/lib/tafsir";
+import { useTafsirGeneration } from "@/hooks/useTafsirGeneration";
 import type { QuranData } from "@/hooks/useQuran";
 import { getGlobalId, parseAyahRef, sha256Text } from "@/lib/quran/validate";
 import { DATASET_META } from "@/lib/quran/store";
@@ -38,6 +39,20 @@ export function AyahView({
   const tafsir = quran.getTafsir(ayahId);
   /* Reviewed rich entry first, legacy curated entry as the fallback. */
   const tafsirModel = buildTafsirModel(ayahId, quran.dataset);
+  const generation = useTafsirGeneration(ayahId, quran.dataset);
+  const shownModel = generation.model ?? tafsirModel;
+  /* When neither source has a reviewed article, state WHY honestly rather than
+     silently hiding the tafsir section (AI is disabled in this build). */
+  const tafsirNotice =
+    tafsirModel?.status === "unavailable"
+      ? tafsirModel.reason === "no-dataset"
+        ? "tafsir.unavailable.noDataset"
+        : tafsirModel.reason === "invalid-ref"
+          ? "tafsir.unavailable.invalidRef"
+          : tafsirModel.aiEnabled
+            ? "tafsir.unavailable.noSource"
+            : "tafsir.unavailable.aiDisabled"
+      : "tadabbur.noTafsirHint";
   const bookmarked = quran.isBookmarked(ayahId);
 
   /* "Verse not found" would blame the reference, but a failed dataset load makes
@@ -179,13 +194,13 @@ export function AyahView({
       </button>
 
       {/* TAFSIR */}
-      {tafsirModel.status !== "unavailable" ? (
+      {shownModel.status !== "unavailable" ? (
         <section className="mt-6">
           <div className="mb-3 flex items-center gap-1.5">
             <Sparkles size={14} className="text-gold-strong" />
             <h3 className="text-sm font-black">{t("ayah.tafsirTitle")}</h3>
           </div>
-          <TafsirPanel model={tafsirModel} />
+          <TafsirPanel model={shownModel} />
         </section>
       ) : tafsir ? (
         <section className="mt-6">
@@ -195,7 +210,40 @@ export function AyahView({
           </div>
           <TafsirSections tafsir={tafsir} />
         </section>
-      ) : null}
+      ) : (
+        <section className="mt-6">
+          <div className="mb-3 flex items-center gap-1.5">
+            <Sparkles size={14} className="text-gold-strong" />
+            <h3 className="text-sm font-black">{t("ayah.tafsirTitle")}</h3>
+          </div>
+          <div className="rounded-2xl border border-line bg-surface-2 p-4">
+            <p className="text-xs font-black text-ink">{t("tadabbur.noTafsirTitle")}</p>
+            <p className="mt-1 text-[11px] leading-5 text-muted">{t(tafsirNotice)}</p>
+            {isTafsirAIEnabled() && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={generation.generate}
+                  disabled={generation.state === "loading"}
+                  className="flex h-10 items-center gap-2 rounded-xl border border-gold/40 bg-gold-soft px-3 text-xs font-black text-gold-strong transition active:scale-[0.98] disabled:opacity-60"
+                >
+                  <Sparkles size={14} />
+                  {t(
+                    generation.state === "loading"
+                      ? "tafsir.generating"
+                      : "tafsir.action.generate"
+                  )}
+                </button>
+                {generation.state === "error" && (
+                  <p className="mt-2 text-[11px] leading-5 text-danger">
+                    {t("tafsir.generatedError")}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* RELATED */}
       {related && related.relatedAyahs.length > 0 && (
@@ -209,9 +257,17 @@ export function AyahView({
         </section>
       )}
 
-      <p className="mt-6 text-center text-[10px] text-muted">
-        {t("ayah.source")} {DATASET_META.source} — {DATASET_META.sourceUrl}
-      </p>
+      {/* The source is a long Latin run inside an Arabic page. Without an
+          explicit LTR isolate the bidi algorithm flips the parentheses and
+          drags the source label to the wrong end of the line, and the
+          unbreakable URL overflows the phone width. So each Latin part gets
+          its own isolated line. */}
+      <div className="mt-6 space-y-1 text-center text-[10px] leading-5 text-muted">
+        <p>
+          {t("ayah.source")} <bdi dir="ltr">{DATASET_META.source}</bdi>
+        </p>
+        <bdi dir="ltr" className="block break-all">{DATASET_META.sourceUrl}</bdi>
+      </div>
     </div>
   );
 }

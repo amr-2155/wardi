@@ -55,8 +55,34 @@ execFileSync(
   { cwd: ROOT, stdio: "pipe" }
 );
 
+/* The promoted reviewed-summary module is compiled separately because it
+   imports its dataset by relative path; keeping the original compile output
+   flat avoids disturbing the C1-C5 checks above. */
+const OUT_SUMMARY = join(ROOT, "node_modules", ".cache", "tafsir-summary-test");
+rmSync(OUT_SUMMARY, { recursive: true, force: true });
+execFileSync(
+  process.execPath,
+  [
+    join(ROOT, "node_modules", "typescript", "bin", "tsc"),
+    join(ROOT, "src", "lib", "tafsir", "summary.ts"),
+    "--outDir", OUT_SUMMARY,
+    "--rootDir", ROOT,
+    "--module", "commonjs",
+    "--moduleResolution", "node",
+    "--target", "es2019",
+    "--esModuleInterop",
+    "--resolveJsonModule",
+    "--skipLibCheck",
+    "--types", "node",
+  ],
+  { cwd: ROOT, stdio: "pipe" }
+);
+
 const core = await import(pathToFileURL(join(OUT, "tafsir", "core.js")).href);
 const prompt = await import(pathToFileURL(join(OUT, "tafsir", "systemPrompt.js")).href);
+const summary = await import(
+  pathToFileURL(join(OUT_SUMMARY, "src", "lib", "tafsir", "summary.js")).href
+);
 
 const {
   resolveTafsirContext,
@@ -392,6 +418,80 @@ check("C5: invalid model output is never shown as tafsir", async () => {
     provider: provider(async () => "```json\n{\"overview\":\"x\",\"verseText\":\"مُحرَّف\"}\n```"),
   });
   assert.equal(result.status, "unavailable");
+});
+
+/* ---------------------------------------------------------------- */
+/* C6 — wider reviewed coverage and a wired (optional) generator      */
+/* ---------------------------------------------------------------- */
+
+const legacy = JSON.parse(
+  readFileSync(join(ROOT, "src", "data", "quran", "tafsir.json"), "utf8")
+);
+const readSrc = (rel) => readFileSync(join(ROOT, rel), "utf8");
+
+check("C6: promoted summaries are a faithful mapping, not new scholarship", () => {
+  const reviewed = legacy.entries.filter((e) => e.reviewStatus === "reviewed");
+  const promoted = summary.SUMMARY_TAFSIR;
+  assert.equal(promoted.length, reviewed.length);
+  promoted.forEach((entry, i) => {
+    const source = reviewed[i];
+    assert.equal(entry.ref, source.ref);
+    assert.equal(entry.overview, source.simplifiedMeaning);
+    assert.equal(entry.summary, source.simplerMeaning);
+    assert.deepEqual(entry.practice, source.howToLive);
+    assert.deepEqual(entry.reflection, [source.reflection]);
+    assert.equal(entry.reviewStatus, "reviewed");
+    assert.ok(entry.sourceEdition.includes(source.tafsirSource));
+  });
+});
+
+check("C6: promoted summaries validate and resolve in the dataset", () => {
+  for (const entry of summary.SUMMARY_TAFSIR) {
+    assert.equal(validateRichTafsirEntry(entry), true, entry.ref);
+    assert.ok(verseText(entry.ref), `${entry.ref} is not a real ayah`);
+    assert.ok(!("verseText" in entry), `${entry.ref}: verse text must not be stored`);
+  }
+});
+
+check("C6: reviewed coverage is deduplicated and full articles win", () => {
+  const richRefs = new Set(richEntries.map((e) => e.ref));
+  const overlap = summary.SUMMARY_TAFSIR.filter((e) => richRefs.has(e.ref));
+  assert.ok(overlap.length > 0, "expected shared flagship ayahs");
+  const sources = readSrc("src/lib/tafsir/sources.ts");
+  assert.match(sources, /RICH_TAFSIR/);
+  assert.match(sources, /SUMMARY_TAFSIR\.filter/);
+  assert.match(sources, /!RICH_REFS\.has\(entry\.ref\)/);
+  assert.match(sources, /validateRichTafsirEntry\(entry\)/);
+  const unique = new Set([...richRefs, ...summary.SUMMARY_TAFSIR.map((e) => e.ref)]);
+  assert.equal(unique.size, richEntries.length + summary.SUMMARY_TAFSIR.length - overlap.length);
+});
+
+check("C6: the optional generator is reachable from both ayah screens", () => {
+  const index = readSrc("src/lib/tafsir/index.ts");
+  assert.match(index, /export function isTafsirAIEnabled/);
+  assert.match(index, /provider: createRemoteProvider\(\)/);
+  assert.match(index, /curated: REVIEWED_TAFSIR/);
+  const hook = readSrc("src/hooks/useTafsirGeneration.ts");
+  assert.match(hook, /generateTafsirLive\(ref, dataset\)/);
+  assert.match(hook, /if \(!ref\) return/);
+  for (const file of [
+    "src/components/views/Ayah.tsx",
+    "src/components/views/AyahActionsSheet.tsx",
+  ]) {
+    const src = readSrc(file);
+    assert.match(src, /useTafsirGeneration\(/, file);
+    assert.match(src, /isTafsirAIEnabled\(\)/, file);
+    assert.match(src, /generation\.generate/, file);
+    assert.match(src, /generation\.state === "loading"/, file);
+  }
+  assert.match(readSrc("src/components/TafsirPanel.tsx"), /entry\.practice/);
+});
+
+check("C6: generation strings exist in both locales", () => {
+  const locale = readSrc("src/lib/locale.ts");
+  for (const key of ["tafsir.action.generate", "tafsir.generating", "tafsir.generatedError"]) {
+    assert.equal(locale.split(`"${key}"`).length - 1, 2, `${key} must be in AR and EN`);
+  }
 });
 
 /* ---------------------------------------------------------------- */

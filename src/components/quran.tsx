@@ -54,7 +54,9 @@ export function AyahMetaFooter() {
       <p>
         {t("quran.verified", {
           source: DATASET_META.source,
-          date: DATASET_META.verificationDate,
+          /* LRI/PDI isolates keep the ISO date in LTR order. Without them the
+             surrounding Arabic flips 2026-08-10 into 10-08-2026 on screen. */
+          date: `\u2066${DATASET_META.verificationDate}\u2069`,
         })}
       </p>
     </div>

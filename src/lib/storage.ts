@@ -127,6 +127,16 @@ export function sanitizeReading(raw: unknown): Reading | null {
     reading.plannedStart = plannedStart;
     reading.plannedEnd = plannedEnd;
   }
+  /* Carryover decisions are part of the record's identity for unfinished days.
+     Preserve only well-formed values so a corrupt import cannot smuggle an
+     unknown choice into the UI. Old records simply have no decision. */
+  if (r.carryoverDecision === "continue" || r.carryoverDecision === "add" || r.carryoverDecision === "postpone") {
+    reading.carryoverDecision = r.carryoverDecision;
+    reading.carryoverDecisionDate = isDateKey(r.carryoverDecisionDate) ? r.carryoverDecisionDate : undefined;
+    reading.carryoverAdjustedTarget = Number.isFinite(Number(r.carryoverAdjustedTarget))
+      ? Math.max(1, Math.floor(num(r.carryoverAdjustedTarget, 1)))
+      : undefined;
+  }
   return reading;
 }
 

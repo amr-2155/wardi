@@ -412,7 +412,11 @@ check("H2: the tadabbur translation key inventory is unchanged", () => {
   const keys = [...new Set([...locale.matchAll(/"(tadabbur\.[\w.]+)":/g)].map((m) => m[1]))];
   assert.deepEqual(keys, [
     "tadabbur.title", "tadabbur.subtitle", "tadabbur.verseOf", "tadabbur.deferred",
-    "tadabbur.start", "tadabbur.defer", "tadabbur.timerTitle", "tadabbur.timerStart",
+    "tadabbur.start",
+    /* Added 2026-11-17: the reflection card's two honest CTAs — open the
+       page-grounded reflection, or read the full tafsir. Both languages. */
+    "tadabbur.reflectCta", "tadabbur.fullTafsir",
+    "tadabbur.defer", "tadabbur.timerTitle", "tadabbur.timerStart",
     "tadabbur.timerDone", "tadabbur.stepTitle", "tadabbur.stepDone", "tadabbur.stepTodo",
     "tadabbur.reflectTitle", "tadabbur.reflectPlaceholder", "tadabbur.reflectSave",
     "tadabbur.reflectHint", "tadabbur.celebrate", "tadabbur.completed", "tadabbur.retake",
@@ -431,6 +435,17 @@ check("H3: the sheet takes its title from the locale layer", () => {
   const src = read(SHEET);
   assert.match(src, /useLocale\(\)/, "the sheet must resolve its own title");
   assert.ok(!/title="[^"]*[\u0600-\u06FF]/.test(src), "the sheet title must not be a hardcoded literal");
+});
+
+check("H4: the full-tafsir action is localized in both languages", () => {
+  const src = read(SHEET);
+  assert.match(src, /\{t\("tadabbur\.fullTafsir"\)\}/, "the CTA must use the locale key");
+  assert.ok(!/فتح صفحة الآية كاملة/.test(src), "the hardcoded Arabic CTA returned");
+  const locale = read("src/lib/locale.ts");
+  assert.ok(
+    (locale.match(/"tadabbur\.fullTafsir":/g) ?? []).length === 2,
+    "the key must stay defined in both dictionaries"
+  );
 });
 
 /* ---------------------------------------------------------------- */

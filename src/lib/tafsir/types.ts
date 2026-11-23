@@ -65,6 +65,12 @@ export type RichTafsirEntry = {
   context?: string;
   revelation?: TafsirRevelation;
   detailed?: string[];
+  /**
+   * Reviewed, practical "how to live by it" steps. Kept separate from
+   * `detailed` so a legacy reviewed summary is never relabelled as a full
+   * scholarly exposition when it is promoted into the rich renderer.
+   */
+  practice?: string[];
   benefits?: TafsirBenefit[];
   scholars?: TafsirScholars;
   application?: TafsirApplication;

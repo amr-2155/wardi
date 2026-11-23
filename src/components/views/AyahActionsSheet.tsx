@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CircleAlert, Pause, Play } from "lucide-react";
+import { BookOpen, CircleAlert, Pause, Play, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { useAudioPlayer } from "@/components/providers/AudioProvider";
@@ -9,7 +9,8 @@ import { TafsirPanel } from "@/components/TafsirPanel";
 import { TafsirSections } from "@/components/TafsirSections";
 import { Sheet } from "@/components/ui";
 import { useLocale } from "@/lib/locale";
-import { buildTafsirModel } from "@/lib/tafsir";
+import { buildTafsirModel, isTafsirAIEnabled } from "@/lib/tafsir";
+import { useTafsirGeneration } from "@/hooks/useTafsirGeneration";
 import type { QuranData } from "@/hooks/useQuran";
 import { shareVerseCard } from "@/lib/shareCard";
 
@@ -100,6 +101,8 @@ export function AyahActionsSheet({
     );
   };
 
+  const generation = useTafsirGeneration(ayahRef, quran.dataset);
+
   if (!ayahRef) return null;
 
   const title = resolved
@@ -109,6 +112,7 @@ export function AyahActionsSheet({
   /* The rich, reviewed source pack takes precedence; the legacy 24-entry
      dataset remains the fallback so nothing that already worked disappears. */
   const tafsirModel = ayahRef ? buildTafsirModel(ayahRef, quran.dataset) : null;
+  const shownModel = generation.model ?? tafsirModel;
   const related = ayahRef ? quran.getRelated(ayahRef) : null;
   const bookmarked = ayahRef ? quran.isBookmarked(ayahRef) : false;
   /* Why there is no reviewed article, phrased honestly instead of a generic
@@ -216,8 +220,8 @@ export function AyahActionsSheet({
             {/* TAFSIR */}
             <section className="mt-5">
               <h4 className="mb-2 text-sm font-black">{t("ayah.tafsirTitle")}</h4>
-              {tafsirModel && tafsirModel.status !== "unavailable" ? (
-                <TafsirPanel model={tafsirModel} />
+              {shownModel && shownModel.status !== "unavailable" ? (
+                <TafsirPanel model={shownModel} />
               ) : tafsir ? (
                 <TafsirSections tafsir={tafsir} />
               ) : (
@@ -226,6 +230,28 @@ export function AyahActionsSheet({
                   <p className="mt-1 text-[11px] leading-5 text-muted">
                     {t(tafsirNotice)}
                   </p>
+                  {isTafsirAIEnabled() && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={generation.generate}
+                        disabled={generation.state === "loading"}
+                        className="flex h-9 items-center gap-2 rounded-xl border border-gold/40 bg-gold-soft px-3 text-[11px] font-black text-gold-strong transition active:scale-[0.98] disabled:opacity-60"
+                      >
+                        <Sparkles size={13} />
+                        {t(
+                          generation.state === "loading"
+                            ? "tafsir.generating"
+                            : "tafsir.action.generate"
+                        )}
+                      </button>
+                      {generation.state === "error" && (
+                        <p className="mt-2 text-[11px] leading-5 text-danger">
+                          {t("tafsir.generatedError")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </section>

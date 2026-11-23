@@ -109,6 +109,7 @@ export function validateRichTafsirEntry(value: unknown): value is RichTafsirEntr
     isNonEmptyString(v.dua) ||
     isNonEmptyString(v.summary) ||
     isStringArray(v.detailed) ||
+     isStringArray(v.practice) ||
     isStringArray(v.reflection);
   if (!hasSubstance) return false;
 
@@ -118,6 +119,7 @@ export function validateRichTafsirEntry(value: unknown): value is RichTafsirEntr
   if (v.summary !== undefined && !isNonEmptyString(v.summary)) return false;
   if (v.vocabulary !== undefined && !isVocabulary(v.vocabulary)) return false;
   if (v.detailed !== undefined && !isStringArray(v.detailed)) return false;
+  if (v.practice !== undefined && !isStringArray(v.practice)) return false;
   if (v.benefits !== undefined && !isBenefits(v.benefits)) return false;
   if (v.reflection !== undefined && !isStringArray(v.reflection)) return false;
   if (v.revelation !== undefined && !isRevelation(v.revelation)) return false;
