@@ -20,13 +20,23 @@
 # production
 /build
 
-# Android reader builds are published as GitHub Releases, not commit blobs.
+# Android builds and checksum files are published as GitHub Releases, not commit blobs.
 # (The first shipped APK stays tracked; later builds are attached to tags.)
 /dist/*.apk
+/dist/*.sha256
 
 # misc
 .DS_Store
+
+# Local secrets and signing material. Never commit these.
 *.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+google-services.json
+service-account*.json
 
 # dev server logs
 /dev-server*.log

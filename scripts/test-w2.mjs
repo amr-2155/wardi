@@ -80,6 +80,11 @@ const W2_FILES = W2_VIEWS.map((rel) => {
    started. W2 must not have moved any of them. If one of these legitimately
    changes later, updating the constant is the conscious act this forces.
 
+   The pins were recorded from LF bytes. Windows checkouts with
+   core.autocrlf=true insert CR bytes without changing the source, so the
+   integrity check below normalizes CRLF to LF before hashing. Content changes
+   still fail; only Git's line-ending translation is ignored.
+
    Re-pinned 2026-10-08: `wardReminder.ts` and `backup.ts` drifted from their
    W2-era pins. Both are new, still-untracked files whose content changed during
    the uncommitted W1 work, and both are functionally verified by the reminder
@@ -716,17 +721,18 @@ check("C6: frozen logic modules do not import the locale layer", () => {
     `these are frozen and must not depend on locale: ${touched.join(", ")}`);
 });
 
-check("C6: every frozen module is byte-identical to its pre-W2 state", () => {
+check("C6: every frozen module is content-identical to its pre-W2 state", () => {
   const moved = [];
   for (const [rel, prefix] of Object.entries(FROZEN_HASHES)) {
     const abs = join(ROOT, ...rel.split("/"));
     assert.ok(existsSync(abs), `frozen module missing: ${rel}`);
     const actual = createHash("sha256")
-      .update(readFileSync(abs))
+      .update(readFileSync(abs, "utf8").replace(/\r\n/g, "\n"))
       .digest("hex")
       .slice(0, 16);
     // Lowercase both sides: node emits a lowercase digest while the recorded
-    // prefixes were captured uppercase.
+    // prefixes were captured uppercase. CRLF is normalized above because Git
+    // may translate line endings on Windows without changing the source.
     if (actual.toLowerCase() !== prefix.toLowerCase()) {
       moved.push(`${rel} (expected ${prefix}, got ${actual})`);
     }
