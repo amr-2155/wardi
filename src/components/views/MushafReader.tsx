@@ -54,8 +54,8 @@ import {
   saveSession,
   loadQuranSession,
   saveQuranSession,
-  loadQuranLastPage,
-  saveQuranLastPage,
+  resolveQuranResumePage,
+  saveQuranResumePage,
   sanitizeBookmarks,
   recordWardPage,
   recordedPagesOf,
@@ -687,17 +687,31 @@ export function MushafReaderView({
       sessionEndTime: null,
       brightness: prev?.brightness ?? 1,
       readAgain: false,
-      highestPageReached: sameWard
-        ? (prev?.highestPageReached ?? prev?.lastReadPage ?? range.start)
-        : range.start,
+      highestPageReached: isQuranMode
+        ? clampPage(
+            prev?.highestPageReached ?? prev?.lastReadPage ?? range.start,
+            range.start,
+            range.end,
+          )
+        : sameWard
+          ? (prev?.highestPageReached ?? prev?.lastReadPage ?? range.start)
+          : range.start,
       autoScrollEnabled: prev?.autoScrollEnabled ?? false,
       scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
-      // A different range starts with an empty confirmed set: progress and
-      // completion can never leak from the previous ward.
-      recordedPages: sameWard && prev ? recordedPagesOf(prev) : [],
-      completed: sameWard ? (prev?.completed ?? false) : false,
-      completedPages: sameWard ? (prev?.completedPages ?? 0) : 0,
-      lastReadPage: sameWard ? (prev?.lastReadPage ?? range.start) : range.start,
+      // Quran mode keeps its own session context. Only a different ward range
+      // starts with an empty confirmed set so progress cannot leak.
+      recordedPages: (isQuranMode || sameWard) && prev ? recordedPagesOf(prev) : [],
+      completed: isQuranMode || sameWard ? (prev?.completed ?? false) : false,
+      completedPages: isQuranMode || sameWard ? (prev?.completedPages ?? 0) : 0,
+      lastReadPage: isQuranMode
+        ? clampPage(
+            resolveQuranResumePage(range.end, prev?.lastReadPage ?? range.start),
+            range.start,
+            range.end,
+          )
+        : sameWard
+          ? (prev?.lastReadPage ?? range.start)
+          : range.start,
       updatedAt: prev?.updatedAt ?? new Date().toISOString(),
       bookmark: Number.isInteger(prev?.bookmark) ? (prev?.bookmark as number) : null,
       bookmarks: sanitizeBookmarks(prev?.bookmarks),
@@ -743,6 +757,20 @@ export function MushafReaderView({
       return n;
     });
   }, []);
+
+  /* One resume target for both Continue surfaces. Quran mode reads the single
+     storage authority; ward mode keeps its existing session-based behaviour. */
+  const lastPageTarget = useCallback(
+    () =>
+      clampPage(
+        isQuranMode
+          ? resolveQuranResumePage(range.end, sessionRef.current.lastReadPage)
+          : sessionRef.current.lastReadPage,
+        range.start,
+        range.end,
+      ),
+    [isQuranMode, range.start, range.end],
+  );
 
   /* Page-based ward progress — derived from the session's monotonic highest
      page, never from a manual flip counter. Opening the ward counts page 1
@@ -1039,7 +1067,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     if (page !== null) return;
     if (!data.loaded) return;
     const s = sessionRef.current;
-    const saved = isQuranMode ? loadQuranLastPage() : loadLastPage();
+    const saved = isQuranMode
+      ? resolveQuranResumePage(range.end, s.lastReadPage)
+      : loadLastPage();
     const todayK = new Date().toISOString().slice(0, 10);
     const fresh =
       !isQuranMode &&
@@ -1049,7 +1079,12 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         s.startPage !== range.start ||
         s.endPage !== range.end);
     let target: number;
-    if (fresh) {
+    if (isQuranMode) {
+      // The full mushaf has one fixed range. Restore the persisted page directly:
+      // the ward-style "land on start, offer a resume card" path would overwrite
+      // quran-page with the start page on every remount (including tafsir Back).
+      target = saved;
+    } else if (fresh) {
       // New ward day (or the app's range moved): open at the start page only
       // and reset this session's page-based progress.
       target = range.start;
@@ -1105,10 +1140,10 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     if (page === null) return;
     if (lastSavedRef.current === page) return;
     lastSavedRef.current = page;
-    if (isQuranMode) saveQuranLastPage(page);
+    if (isQuranMode) saveQuranResumePage(page, range.end);
     else saveLastPage(page);
     patchSession({ lastReadPage: page });
-  }, [page, patchSession, isQuranMode]);
+  }, [page, patchSession, isQuranMode, range.end]);
 
   /* Record a page the moment it is finished. A page counts when the reader
      turns forward past it (it was read and left) or when the finish button is
@@ -1879,10 +1914,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
 
   const resumeContinue = useCallback(() => {
     setShowResume(false);
-    const target = clampPage(sessionRef.current.lastReadPage, range.start, range.end);
     patchSession({ resumeDismissed: true });
-    goTo(target);
-  }, [range.start, range.end, patchSession, goTo]);
+    goTo(lastPageTarget());
+  }, [patchSession, goTo, lastPageTarget]);
 
   const resumeStartOver = useCallback(() => {
     setShowResume(false);
@@ -3214,11 +3248,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
               type="button"
               onClick={() => {
                 setWardOpen(false);
-                const target =
-                  sessionRef.current.lastReadPage >= range.start
-                    ? clampPage(sessionRef.current.lastReadPage, range.start, range.end)
-                    : page ?? range.start;
-                goTo(target);
+                goTo(lastPageTarget());
               }}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gold text-sm font-black text-primary-deep shadow-[0_16px_40px_-16px_rgba(177,138,62,0.7)] transition active:scale-[0.98]"
             >

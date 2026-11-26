@@ -355,3 +355,48 @@ export function saveQuranLastPage(page: number): void {
     // ignore
   }
 }
+
+/* Quran-mode resume has one authority: the dedicated quran-page key. The
+   session object is a context mirror, and the legacy ward page is only a
+   last-resort fallback for installs that predate the quran-specific keys.
+   None of these keys is created, removed or renamed here. */
+function validStoredPage(value: unknown, maxPage: number): number {
+  const n = typeof value === "number" ? value : Number(value ?? "");
+  return Number.isInteger(n) && n >= 1 && n <= maxPage ? n : 0;
+}
+
+function readStoredPage(key: string, maxPage: number): number {
+  try {
+    return validStoredPage(localStorage.getItem(key), maxPage);
+  } catch {
+    return 0;
+  }
+}
+
+function resumeLimit(maxPage: number): number {
+  return Number.isInteger(maxPage) && maxPage > 0 ? maxPage : 604;
+}
+
+/** Resolve the page a full-mushaf reopen should land on. Never mutates storage. */
+export function resolveQuranResumePage(maxPage = 604, fallbackPage?: number): number {
+  const limit = resumeLimit(maxPage);
+  const explicit = readStoredPage(MUSHAF_QURAN_LAST_PAGE_KEY, limit);
+  if (explicit) return explicit;
+  const session = loadQuranSession();
+  const fromSession = validStoredPage(session?.lastReadPage, limit);
+  if (fromSession) return fromSession;
+  const legacy = readStoredPage(MUSHAF_LAST_PAGE_KEY, limit);
+  if (legacy) return legacy;
+  return validStoredPage(fallbackPage, limit) || 1;
+}
+
+/** Write the single resume authority; the component patches the mirror. */
+export function saveQuranResumePage(page: number, maxPage = 604): number {
+  const limit = resumeLimit(maxPage);
+  const n = typeof page === "number" ? page : Number(page ?? "");
+  const safe = Number.isFinite(n)
+    ? Math.min(limit, Math.max(1, Math.round(n)))
+    : 1;
+  saveQuranLastPage(safe);
+  return safe;
+}
