@@ -5,8 +5,8 @@ import type { RichTafsirEntry, TafsirSourcesFile } from "./types";
 
 /**
  * The reviewed source pack. Invalid entries are dropped rather than rendered,
- * so a malformed row degrades to the honest "no reviewed source" state instead
- * of showing half an interpretation. `scripts/test-tafsir-engine.mjs` asserts
+ * so a malformed row cannot show half an interpretation; selection then falls
+ * back honestly to the pinned published edition. `scripts/test-tafsir-engine.mjs` asserts
  * that every entry in the file is valid, so a drop never goes unnoticed.
  */
 const FILE = richJson as unknown as TafsirSourcesFile;

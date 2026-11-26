@@ -22,11 +22,11 @@ export const MUSHAF_THEMES: MushafTheme[] = [
   { id: "midnight", page: "#000000" },
 ];
 
-/* The reader opens on the black sheet. The reference design is a page of white
-   glyphs on one uninterrupted black surface, so the paper is not a colour the
-   default merely leans towards — it is the surface, and every other theme is an
-   explicit opt-in from the appearance sheet. */
-export const DEFAULT_MUSHAF_THEME: MushafThemeId = "midnight";
+/* The reader opens on warm ivory paper, the calm cream-and-gold surface people
+   recognise from modern Quran apps. The darker sheets are still one tap away in
+   the appearance sheet, but they are no longer the first thing a new reader
+   sees. */
+export const DEFAULT_MUSHAF_THEME: MushafThemeId = "ivory";
 
 export function loadMushafTheme(): MushafThemeId {
   try {

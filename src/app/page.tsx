@@ -74,6 +74,37 @@ export default function Page() {
     };
   }, []);
 
+  /* A quran route opened from the Mushaf has to outrank the Mushaf itself.
+     Keeping the route renderer single-sourced avoids duplicating the ayah
+     screen while still letting `onBack` return to the reader underneath. */
+  const renderQuranRoute = () => {
+    if (quranRoute?.mode === "ayah") {
+      return (
+        <AyahView
+          quran={quran}
+          ayahId={quranRoute.ayahId}
+          onBack={() => setQuranRoute(null)}
+          onOpenContext={(chapterId, highlightAyah) =>
+            setQuranRoute({ mode: "reader", chapterId, highlightAyah })
+          }
+          onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
+        />
+      );
+    }
+    if (quranRoute?.mode === "reader") {
+      return (
+        <QuranReaderView
+          quran={quran}
+          chapterId={quranRoute.chapterId}
+          highlightAyah={quranRoute.highlightAyah}
+          onBack={() => setQuranRoute(null)}
+          onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
+        />
+      );
+    }
+    return null;
+  };
+
   if (!data.loaded) {
     return (
       <>
@@ -105,6 +136,8 @@ export default function Page() {
           return <StatsView data={data} onBack={() => setView(null)} />;
         }
         if (view === "mushaf") {
+          const routed = renderQuranRoute();
+          if (routed) return routed;
           return (
             <MushafReaderView
               data={data}
@@ -136,30 +169,8 @@ export default function Page() {
         if (view === "occasions") {
           return <OccasionsView onBack={() => setView(null)} />;
         }
-        if (quranRoute?.mode === "ayah") {
-          return (
-            <AyahView
-              quran={quran}
-              ayahId={quranRoute.ayahId}
-              onBack={() => setQuranRoute(null)}
-              onOpenContext={(chapterId, highlightAyah) =>
-                setQuranRoute({ mode: "reader", chapterId, highlightAyah })
-              }
-              onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
-            />
-          );
-        }
-        if (quranRoute?.mode === "reader") {
-          return (
-            <QuranReaderView
-              quran={quran}
-              chapterId={quranRoute.chapterId}
-              highlightAyah={quranRoute.highlightAyah}
-              onBack={() => setQuranRoute(null)}
-              onOpenAyah={(ayahId) => setQuranRoute({ mode: "ayah", ayahId })}
-            />
-          );
-        }
+        const routed = renderQuranRoute();
+        if (routed) return routed;
         return (
           <div className="bg-bg text-ink">
             {tab === "home" && (

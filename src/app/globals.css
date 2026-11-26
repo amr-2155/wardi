@@ -386,6 +386,42 @@ input[type=number]{appearance:textfield}
 }
 .mushaf-bar-track{background:color-mix(in oklab, var(--mgold) 18%, transparent)}
 .mushaf-bar-fill{background:var(--mgold)}
+
+/* ── Full-screen reading chrome ─────────────────────────────────────────
+   A modern Quran app is mostly page: one quiet app bar above, one compact
+   progress dock below, and nothing competing with the verses in between. The
+   header is now an edge-to-edge strip rather than a floating badge, its icon
+   buttons sit bare on the paper, and the footer is a shallow dock with a soft
+   gold edge. The page itself gets a faint lift so it reads as a sheet laid on
+   the surface, not a full-bleed screenshot. */
+.mushaf-bar-top{
+  border-bottom:1px solid color-mix(in oklab, var(--mgold) 18%, transparent);
+  background:color-mix(in oklab, var(--mpaper-top) 97%, transparent);
+  box-shadow:0 10px 28px -30px color-mix(in oklab, var(--mink) 80%, transparent);
+}
+.mushaf-bar-top > div{height:3.35rem}
+.mushaf-bar-top .mushaf-bar-btn{
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+.mushaf-bar-top .mushaf-bar-btn:active{
+  background:color-mix(in oklab, var(--mgold) 14%, transparent);
+}
+.mushaf-bar-bottom{
+  border-top:0;
+  border-radius:1.15rem 1.15rem 0 0;
+  background:color-mix(in oklab, var(--mpaper-top) 95%, transparent);
+  box-shadow:
+    0 -14px 34px -30px color-mix(in oklab, var(--mink) 72%, transparent),
+    inset 0 1px 0 color-mix(in oklab, #fff 18%, transparent);
+}
+.mushaf-reader[data-mushaf-theme=midnight] .mushaf-bar-bottom{
+  border-radius:1.15rem 1.15rem 0 0;
+  background:#000;
+  box-shadow:none;
+}
+
 /* Fixed reading-position card: surah + juz/hizb + progress ring, with the page
    number beneath. Frosted paper with a gold hairline and a soft top highlight,
    so it reads as part of the sheet rather than a floating web toolbar. */
@@ -401,19 +437,42 @@ input[type=number]{appearance:textfield}
   backdrop-filter:blur(12px) saturate(1.08);
 }
 
-/* The always-visible position pill is quiet paper with a gold hairline: a
-   full surah name on the first line, juz/hizb on the second. It never grows
-   into a card and never pushes the page around when the chrome hides. */
+/* The always-visible position header is the title of the app bar: no capsule,
+   no shadow, just the surah name and a quiet juz/hizb line. The short gold rule
+   beneath gives the block a finished edge without turning it into a badge. */
 .mushaf-position-pill{
-  background:linear-gradient(180deg,
-    color-mix(in oklab, var(--mpaper-top) 94%, transparent),
-    color-mix(in oklab, var(--mpaper-bot) 88%, transparent));
-  border:1px solid color-mix(in oklab, var(--mgold) 40%, transparent);
-  box-shadow:
-    0 12px 28px -22px color-mix(in oklab, var(--mink) 80%, transparent),
-    inset 0 1px 0 color-mix(in oklab, #fff 26%, transparent);
-  -webkit-backdrop-filter:blur(10px) saturate(1.06);
-  backdrop-filter:blur(10px) saturate(1.06);
+  gap:0;
+  min-width:0;
+  padding:.15rem .5rem;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.mushaf-position-pill > span:first-child{
+  font-size:16px;
+  line-height:1.2;
+  font-weight:600;
+  letter-spacing:-.01em;
+}
+.mushaf-position-pill > span:last-child{
+  margin-top:0;
+  padding:0;
+  border-radius:0;
+  background:none;
+  font-size:10px;
+  line-height:1.2;
+  font-weight:600;
+  letter-spacing:.06em;
+}
+.mushaf-position-pill::after{
+  content:"";
+  display:block;
+  width:1.35rem;
+  height:1px;
+  margin-top:.25rem;
+  background:color-mix(in oklab, var(--mgold) 38%, transparent);
 }
 
 /* The printed page mark sits in the reserved foot band, not on the sheet: a
@@ -438,19 +497,16 @@ input[type=number]{appearance:textfield}
 }
 .mushaf-page-number:active{transform:scale(.94)}
 
-/* One circular FAB and one floating panel of circular tools. They are paper
-   surfaces over the sheet, never layout rows, so revealing them cannot reflow
-   the mushaf or move the reading position. */
-.mushaf-tools-fab{
-  color:var(--mink);
-  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
-  border:1px solid color-mix(in oklab, var(--mgold) 62%, transparent);
-  box-shadow:
-    0 16px 34px -16px color-mix(in oklab, var(--mink) 78%, transparent),
-    inset 0 1px 0 color-mix(in oklab, #fff 28%, transparent);
-  -webkit-backdrop-filter:blur(12px) saturate(1.08);
-  backdrop-filter:blur(12px) saturate(1.08);
+/* One floating panel of circular tools, plus the shallow control dock at the
+   foot of the page. The panel is a paper surface over the sheet, never a layout
+   row, so revealing it cannot reflow the mushaf or move the reading position. */
+.mushaf-dock{
+  margin-top:.4rem;
+  padding-top:.45rem;
+  padding-bottom:.15rem;
+  border-top:1px solid color-mix(in oklab, var(--mgold) 12%, transparent);
 }
+.mushaf-dock-btn{-webkit-tap-highlight-color:transparent}
 .mushaf-tools-panel{
   color:var(--mink);
   background:linear-gradient(180deg,
@@ -463,7 +519,6 @@ input[type=number]{appearance:textfield}
   -webkit-backdrop-filter:blur(18px) saturate(1.08);
   backdrop-filter:blur(18px) saturate(1.08);
 }
-.mushaf-reader[data-mushaf-theme=midnight] .mushaf-tools-fab,
 .mushaf-reader[data-mushaf-theme=midnight] .mushaf-tools-panel{
   background:#0b0b0b;
   border-color:#ffffff2b;
@@ -475,7 +530,10 @@ input[type=number]{appearance:textfield}
 
 .mushaf-stage:after{content:"";pointer-events:none;background:radial-gradient(130% 110% at 50% 42%, transparent 72%, var(--mvignette) 100%);position:absolute;inset:0}
 
-.mushaf-glyphs{filter:var(--mimg-filter)}
+.mushaf-glyphs{
+  filter:var(--mimg-filter);
+  box-shadow:0 22px 44px -34px color-mix(in oklab, var(--mink) 44%, transparent);
+}
 
 .mushaf-paper,.mushaf-loading{background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot))}
 

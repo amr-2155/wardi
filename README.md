@@ -62,6 +62,7 @@ icons and pages):
 node scripts/build-quran-dataset.mjs
 node scripts/build-glyph-boxes.mjs
 node scripts/build-ayah-meta.mjs
+node scripts/download-tafsir-muyassar.mjs   # needs the network; rewrites its SHA-256 pin
 pwsh scripts/generate-icons.ps1
 pwsh scripts/generate-android-assets.ps1
 ```
@@ -168,7 +169,7 @@ minute was not observed in this session, so audible delivery remains unverified.
 
 ## Tafsir
 
-The ayah menu renders tafsir from two paths, in that order of trust.
+The ayah menu renders tafsir from three paths, in that order of trust.
 
 1. **A reviewed source pack** (`src/data/quran/tafsir-rich.json`). Ten ayahs
    carry full articles: Al-Fatiha 1:1–1:7 plus 2:255, 2:285 and 2:286. Each is
@@ -183,23 +184,42 @@ The ayah menu renders tafsir from two paths, in that order of trust.
    ayahs** in total without writing a single new line of interpretation: the
    original "how to live" steps land in a separately labelled `practice` field
    so they are never passed off as scholarly exposition. Both packs are
-   validated before display (`scripts/test-tafsir-engine.mjs`, C6).
-2. **An optional operator-deployed proxy.** `NEXT_PUBLIC_TAFSIR_AI_URL` points
+   validated before display (`scripts/test-tafsir-engine.mjs`, C1–C6).
+2. **A pinned published edition, offline.** `public/quran/tafsir-muyassar.json`
+   holds all **6236 ayahs** of `ar-tafsir-muyassar` (التفسير الميسر), copied
+   verbatim from [`spa5k/tafsir_api`](https://github.com/spa5k/tafsir_api)
+   release `v1.2.3`, whose README credits TarteelAI's QUL resource 38. The
+   mirror is MIT-licensed; the tafsir wording belongs to the named published
+   edition and is redistributed with attribution. This is **not** an in-house
+   human review: every entry is labelled `published`, carries the source
+   edition and retrieval date, and gets its own badge and disclaimer. The asset
+   is fetched from the app's own `public/` path after mount (never during
+   render), and its exact bytes are checked against the SHA-256 pinned in
+   `src/lib/quran/tafsirSource.const.ts` before parsing. A missing or tampered
+   file resolves to the honest unavailable state; upstream is never contacted
+   at runtime. Concurrent readers share one verified fetch, and a transient
+   failure can be retried on the next screen mount. The panel's honesty label is
+   also embedded in copied and shared text, so attribution survives export.
+   Regenerate deliberately with
+   `node scripts/download-tafsir-muyassar.mjs` — that script also rewrites the
+   hash constant and fails unless all 6236 refs are present and unique.
+3. **An optional operator-deployed proxy.** `NEXT_PUBLIC_TAFSIR_AI_URL` points
    at a trusted server; the static bundle holds no model key and calls no vendor
    directly. Generated output is validated before display (JSON shape, same
    reference, no verse text supplied, no unfilled placeholders) and is marked
    as a draft. Invalid output is discarded rather than shown as tafsir.
 
-When neither path applies, the panel states the reason — no reviewed source, AI
-disabled, missing dataset, or an unknown reference — instead of inventing
-commentary. The proxy path is now **wired**: the ayah screen and the ayah action
-sheet show an explicit "Generate AI tafsir" action only when
-`NEXT_PUBLIC_TAFSIR_AI_URL` is configured (`isTafsirAIEnabled`). Nothing calls
-the network on render; a stale in-flight result is discarded when the ayah
-changes; a failed or unavailable generation keeps the honest empty state.
-Without a proxy, the shipped app remains curated-only by design.
-`scripts/test-tafsir-engine.mjs` gates the prompt, both packs, the wiring and
-every degradation path.
+When no source applies, the panel states the reason — missing dataset, unknown
+reference, source still loading or failing its fingerprint, no source, or AI
+disabled — instead of inventing commentary. The proxy path remains **wired**:
+the ayah screen and the ayah action sheet show an explicit "Generate AI tafsir"
+action only when `NEXT_PUBLIC_TAFSIR_AI_URL` is configured. Nothing calls the
+network on render; the keyed generation hook discards a stale in-flight result
+when the ayah, dataset or published pack changes, and a reviewed or published
+source always wins over an earlier draft. Without a proxy, the shipped app
+stays offline with its reviewed and published packs.
+`scripts/test-tafsir-engine.mjs` gates the prompt, all three paths, the labels,
+the hash, the published pack's completeness and every degradation path (C1–C7).
 
 ## Home-screen widgets
 
@@ -267,11 +287,15 @@ unrelated widget refresh interval, not a display setting.
 - On-device checks confirmed the scheduled reminder and a live widget instance
   after reinstall (see above), but an audible alarm at the scheduled minute and
   the widget's pixel-level rendering were not observed.
-- Tafsir covers 32 reviewed ayahs (10 full articles + 22 promoted reviewed
-  summaries). The live generator is wired but unconfigured by default: without
-  an operator-deployed `NEXT_PUBLIC_TAFSIR_AI_URL`, every other ayah shows the
-  honest "no reviewed source" state. Supplying a reviewed source pack remains
-  the only offline way to widen coverage further.
+- Tafsir coverage has two clearly separated tiers. Only 32 ayahs (10 full
+  articles + 22 promoted reviewed summaries) are in-house reviewed. The bundled
+  `التفسير الميسر` edition (`public/quran/tafsir-muyassar.json`, hash-pinned and
+  verified at load) covers all 6236 ayahs offline, but its text is copied
+  verbatim from a published source and is labelled as such — it is not an
+  in-house human review. The live generator is wired but unconfigured by
+  default: without an operator-deployed `NEXT_PUBLIC_TAFSIR_AI_URL` it stays
+  dormant, and only the honest "no source available" state appears if neither
+  the reviewed pack nor the published edition can be selected.
 - Topic-name normalization is inconsistent: 26 references across 6 topics cannot
   be reached by search. Left as-is; it is unrelated to the data-integrity work.
 - Localization is broad but not total. Home, Plan, Stats, Settings, History,

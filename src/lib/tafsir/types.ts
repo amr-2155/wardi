@@ -8,13 +8,15 @@ import type { AyahRef } from "../quran/types";
  * its tests and UI keep working; this one carries the fuller, article-shaped
  * interpretation the reader screen needs.
  *
- * Two hard rules encode the project's integrity stance:
+ * Three hard rules encode the project's integrity stance:
  *  - The exegeted verse text is NEVER stored here. It is resolved at render
  *    time from the canonical, hash-verified Quran dataset.
- *  - Only a reviewed entry may be presented as trusted commentary. Anything
- *    produced by a language model is `draft` until a human reviews it.
+ *  - `reviewed` means a human checked this exact wording for this app.
+ *  - `published` means verbatim text from a named published edition; it is
+ *    trustworthy as a source, but it is NOT an in-house human review. Anything
+ *    produced by a language model stays `draft` until a human reviews it.
  */
-export type TafsirReviewStatus = "reviewed" | "draft";
+export type TafsirReviewStatus = "reviewed" | "published" | "draft";
 
 export type TafsirVocabularyItem = {
   term: string;
@@ -57,8 +59,11 @@ export type TafsirRevelation = {
 export type RichTafsirEntry = {
   ref: AyahRef;
   reviewStatus: TafsirReviewStatus;
-  reviewedDate: string;
-  /** The books the reviewed summary is drawn from, plus the review note. */
+  /** Present for entries this app reviewed, and for generated drafts. */
+  reviewedDate?: string;
+  /** Retrieval/publication date for a verbatim `published` edition. */
+  sourceDate?: string;
+  /** The published edition, or the books the reviewed summary is drawn from. */
   sourceEdition: string;
   overview?: string;
   vocabulary?: TafsirVocabularyItem[];

@@ -196,7 +196,15 @@ const FROZEN_HASHES = {
       page images use next/image with unoptimized=true, preserving the exact
       /quran/pages/*.webp URLs, natural 1024x1656 glyph measurements and the
       1px preloaders. Lint-only: no reader behaviour or counting change. */
-  "src/components/views/MushafReader.tsx": "c7a82a8bf3211591",
+
+   /* Re-pinned 2026-11-25 (cream redesign, second pass): the floating FAB moved
+      into a shallow circular control dock at the foot of the page — page back,
+      tools panel, gold recitation action, text size, page forward — and the
+      duplicate progress ring left the footer. The dock is still a shortcut
+      layer over the tools panel; no action was added or removed, and the
+      counting/completion/reflection semantics are untouched (test-immersive
+      I12/I13 now pin the dock contract). */
+  "src/components/views/MushafReader.tsx": "e9ab3060ee0d9b93",
    /* Re-pinned 2026-11-18 (missing-change audit): a manual swipe or page flip
       no longer silently resumes auto-scroll — only the explicit Resume control
       does; a wheel/trackpad interaction pauses the same way; and completion for

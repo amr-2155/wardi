@@ -471,6 +471,68 @@ function ToolCircle({
   );
 }
 
+/* One icon-only control in the reading dock. Same circular paper language as
+   ToolCircle, but without a caption: the dock is a quiet transport row at the
+   foot of the page, so it stays shallow enough not to eat the sheet. `primary`
+   paints the one gold action (recitation). */
+function DockButton({
+  icon,
+  label,
+  onClick,
+  active = false,
+  disabled = false,
+  primary = false,
+  toolsTrigger = false,
+  expanded,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  primary?: boolean;
+  /** Marks the button that opens the tools panel, for tests and QA hooks. */
+  toolsTrigger?: boolean;
+  /** Set on the tools trigger so the panel's state is announced. */
+  expanded?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-expanded={expanded}
+      aria-pressed={active || undefined}
+      aria-disabled={disabled || undefined}
+      data-active={active || undefined}
+      data-tools-fab={toolsTrigger || undefined}
+      className={`mushaf-dock-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
+        disabled ? "pointer-events-none opacity-35" : ""
+      }`}
+      style={
+        primary
+          ? {
+              color: "var(--mpaper-top)",
+              background: "var(--mgold)",
+              border: "1px solid color-mix(in oklab, var(--mgold-strong) 72%, transparent)",
+              boxShadow: "0 10px 22px -12px color-mix(in oklab, var(--mgold) 80%, transparent)",
+            }
+          : {
+              color: "var(--mink)",
+              background: active
+                ? "color-mix(in oklab, var(--mgold) 22%, var(--mpaper-top))"
+                : "color-mix(in oklab, var(--mpaper-top) 88%, white)",
+              border: "1px solid color-mix(in oklab, var(--mgold) 34%, transparent)",
+              boxShadow: "0 6px 14px -12px color-mix(in oklab, var(--mink) 50%, transparent)",
+            }
+      }
+    >
+      {icon}
+    </button>
+  );
+}
+
 export function MushafReaderView({
   data,
   quran,
@@ -2847,16 +2909,6 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 style={{ width: `${donePct}%` }}
               />
             </div>
-            <ProgressRing
-              percent={donePct}
-              showDot
-              size={22}
-              stroke={2.5}
-              track="color-mix(in oklab, var(--mgold) 18%, transparent)"
-              bar="var(--mgold)"
-              dotColor="var(--mgold-strong)"
-              className="shrink-0"
-            />
             <span
               className="num-ltr shrink-0 whitespace-nowrap text-[12px] font-black tabular-nums"
               style={{ color: "var(--mmuted)" }}
@@ -2865,11 +2917,8 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
             </span>
           </div>
 
-          {/* DONE LINE — the old transport row (finish / prev / jump / next /
-              listen / more) was removed; every one of those actions now lives
-              in the floating tools menu. Only the completed state keeps a calm
-              confirmation line here so the footer never grows into a second
-              navigation bar. */}
+          {/* DONE LINE — only the completed state keeps a calm confirmation
+              line here; it never becomes a second row of actions. */}
           {isDone && (
             <div
               className="flex items-center justify-center gap-1.5 pb-0.5 pt-1.5 text-[11px] font-black"
@@ -2879,6 +2928,61 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
               {t("mushaf.doneToday")}
             </div>
           )}
+
+          {/* CONTROL DOCK — the shallow circular row that closes the screen,
+              the way a modern Quran app does: page back, recitation, text
+              size, tools panel, page forward. Icons only, one gold action.
+              Every action here is a shortcut to a control the tools panel
+              also owns, so the dock adds reach without inventing a second
+              navigation surface or losing anything when it fades away. */}
+          <div className="mushaf-dock flex items-center justify-center gap-2.5 px-3">
+            <DockButton
+              icon={<ChevronLeft size={17} className="rtl:-scale-x-100" />}
+              label={t("mushaf.prevShort")}
+              disabled={!canPrev}
+              onClick={goPrevP}
+            />
+            <DockButton
+              icon={toolsOpen ? <X size={17} /> : <SlidersHorizontal size={17} />}
+              label={t("mushaf.tools")}
+              active={toolsOpen}
+              expanded={toolsOpen}
+              toolsTrigger
+              onClick={() => {
+                if (toolsOpen) closeTools();
+                else {
+                  setToolsOpen(true);
+                  pokeChrome();
+                }
+              }}
+            />
+            <DockButton
+              icon={audio.player.isPlaying ? <Pause size={17} /> : <Play size={17} />}
+              label={t(audio.player.isPlaying ? "mushaf.listenPause" : "mushaf.listenPlay")}
+              active={audio.player.isPlaying}
+              disabled={page === null}
+              primary
+              onClick={() => {
+                if (audio.currentTrack) {
+                  if (audio.player.isPlaying) audio.actions.pause();
+                  else audio.actions.play();
+                } else {
+                  void handleListen();
+                }
+              }}
+            />
+            <DockButton
+              icon={<Type size={17} />}
+              label={t("mushaf.textSize")}
+              onClick={() => setTextSizeOpen(true)}
+            />
+            <DockButton
+              icon={<ChevronRight size={17} className="rtl:-scale-x-100" />}
+              label={t("mushaf.nextShort")}
+              disabled={!canNext}
+              onClick={goNextP}
+            />
+          </div>
         </footer>
       )}
 
@@ -3125,38 +3229,13 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         </div>
       )}
 
-      {/* ── FLOATING TOOLS ─────────────────────────────────────────────
-          The bottom transport/guide rows are gone. One calm circular FAB opens
-          a floating panel of circular controls; everything it contains used to
-          live in a row or in the buried "more" sheet, so no function was lost
-          and no function is offered twice in a second bar. The FAB and panel
-          are overlays above the page and fade away with the rest of the chrome. */}
+      {/* ── TOOLS PANEL ─────────────────────────────────────────────────
+          The dock's last control opens this floating panel of circular tools;
+          everything it contains used to live in a row or in the buried "more"
+          sheet, so no function was lost. The panel is an overlay above the page
+          and closes with the rest of the chrome. */}
       {!celebration && (
         <>
-          <button
-            type="button"
-            data-tools-fab
-            onClick={() => {
-              if (toolsOpen) closeTools();
-              else {
-                setToolsOpen(true);
-                pokeChrome();
-              }
-            }}
-            aria-label={t("mushaf.tools")}
-            aria-expanded={toolsOpen}
-            aria-hidden={!chrome}
-            inert={!chrome}
-            className={`mushaf-tools-fab absolute end-3 z-50 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-200 ${
-              chrome
-                ? "pointer-events-auto translate-y-0 opacity-100"
-                : "pointer-events-none translate-y-2 opacity-0"
-            }`}
-            style={{ bottom: "calc(var(--mushaf-bar-bot-h, 0px) + 0.7rem)" }}
-          >
-            {toolsOpen ? <X size={19} /> : <SlidersHorizontal size={19} />}
-          </button>
-
           {toolsOpen && (
             <>
               <div
@@ -3174,9 +3253,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 dir={locale === "ar" ? "rtl" : "ltr"}
                 className="mushaf-tools-panel animate-scale-in-soft absolute end-3 z-50 w-[min(20.5rem,calc(100vw-1.5rem))] overflow-y-auto rounded-[26px] p-3"
                 style={{
-                  bottom: "calc(var(--mushaf-bar-bot-h, 0px) + 4.25rem)",
+                  bottom: "calc(var(--mushaf-bar-bot-h, 0px) + 0.6rem)",
                   maxHeight:
-                    "calc(var(--mushaf-h) - var(--mushaf-bar-top-h, 0px) - var(--mushaf-bar-bot-h, 0px) - 5.5rem)",
+                    "calc(var(--mushaf-h) - var(--mushaf-bar-top-h, 0px) - var(--mushaf-bar-bot-h, 0px) - 1.6rem)",
                 }}
               >
                 <div className="mb-2 flex items-start justify-between gap-2 px-1">

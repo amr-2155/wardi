@@ -448,6 +448,15 @@ check("H4: the full-tafsir action is localized in both languages", () => {
   );
 });
 
+check("H5: the card does not claim there is no tafsir while a source is pending or shown", () => {
+  const section = read(SECTION);
+  assert.match(section, /sourceNotice\?: string \| null/, "the card must accept an honest source state");
+  assert.match(section, /sourceNotice \? \(/, "the no-tafsir hint must be replaced when a notice exists");
+  const sheet = read(SHEET);
+  assert.match(sheet, /sourceNotice=\{sourceNotice\}/, "the sheet must pass that state through");
+  assert.match(sheet, /showPublishedTafsir/, "published tafsir must be shown for non-curated ayahs");
+});
+
 /* ---------------------------------------------------------------- */
 
 for (const { name, fn } of checks) {

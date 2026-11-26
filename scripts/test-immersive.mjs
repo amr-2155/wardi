@@ -85,15 +85,15 @@ check("I5: header and footer are absolute overlays above the page", () => {
 
 check("I6: hidden tools are untouchable and out of the a11y tree", () => {
   /* The header itself stays live because its centred position pill must always
-     be readable. The four pieces that do fade out — back, close, the progress
-     footer and the floating FAB — must each leave both the touch and the a11y
+     be readable. The three pieces that do fade out — back, close and the
+     progress/control footer — must each leave both the touch and the a11y
      tree, or a tap on the page could hit an invisible control. */
   const hidden = reader.match(/pointer-events-none[^"`]*opacity-0/g) ?? [];
-  assert.ok(hidden.length >= 4, "every fading control needs a hidden state");
+  assert.ok(hidden.length >= 3, "every fading control needs a hidden state");
   const inert = reader.match(/inert=\{!chrome\}/g) ?? [];
-  assert.equal(inert.length, 4, "back, close, footer and FAB must be inert while hidden");
+  assert.equal(inert.length, 3, "back, close and footer must be inert while hidden");
   const aria = reader.match(/aria-hidden=\{!chrome\}/g) ?? [];
-  assert.equal(aria.length, 4, "back, close, footer and FAB must leave the a11y tree while hidden");
+  assert.equal(aria.length, 3, "back, close and footer must leave the a11y tree while hidden");
 });
 
 /* ---- the reserved band: an overlay must never cover a line ---- */
@@ -113,6 +113,27 @@ check("I8: the band is a blur of the same paper, not an opaque slab", () => {
   const block = rule.slice(0, rule.indexOf("}"));
   assert.match(block, /backdrop-filter:blur\(/, "the page must stay visible through the bar");
   assert.match(block, /color-mix\(in oklab, var\(--mpaper-top\) 9\d%/, "the bar must be nearly the page paper");
+});
+
+check("I17: the reader is a cream page with a quiet app bar", () => {
+  const css = read("src/app/globals.css");
+  const pill = css.slice(css.indexOf(".mushaf-position-pill{"));
+  const block = pill.slice(0, pill.indexOf("}"));
+  assert.match(block, /background:transparent/, "the title must sit on the app bar, not in a badge");
+  assert.match(block, /border:0/, "the old gold capsule must not come back");
+  assert.match(css, /\.mushaf-bar-top\{[^}]*border-bottom:1px solid/,
+    "the app bar needs one quiet edge");
+  assert.match(css, /\.mushaf-bar-bottom\{[^}]*border-radius:1\.15rem/,
+    "the footer must read as a compact dock");
+  assert.match(css, /\.mushaf-dock\{[^}]*border-top:1px solid/,
+    "the control row must sit under one quiet divider");
+  assert.match(css, /\.mushaf-glyphs\{[^}]*box-shadow/,
+    "the page must read as a sheet on the surface");
+  assert.match(css, /\.mushaf-position-pill > span:last-child\{[^}]*margin-top:0/,
+    "the juz/hizb line must sit directly under the title");
+  const theme = read("src/lib/quran/readerTheme.ts");
+  assert.match(theme, /DEFAULT_MUSHAF_THEME: MushafThemeId = "ivory"/,
+    "a new reader must open on the warm paper surface");
 });
 
 /* ---- native system bars: this screen only, and restored ---- */
@@ -142,28 +163,32 @@ check("I11: an edge swipe reveals the system bars only transiently", () => {
   assert.match(src, /super\.onCreate\(savedInstanceState\)/, "must not replace Capacitor's setup");
 });
 
-check("I12: the footer is a progress line, not a second navigation bar", () => {
+check("I12: the footer is a shallow reading dock, not a second toolbar", () => {
   const footer = reader.slice(reader.indexOf("<footer"), reader.indexOf("</footer>"));
   for (const token of [
-    "audio.currentTrack",
     "skipVerse",
-    "goNextP",
-    "goPrevP",
     "finishPage",
     "jumpTo",
-    "handleListen",
     "flowDown",
     "flowUp",
     "AUTO_SPEEDS",
   ]) {
     assert.ok(!footer.includes(token), `the footer must not own ${token} any more`);
   }
-  assert.match(footer, /PROGRESS \+ WARD RANGE/, "the progress line is the one footer tool");
+  assert.match(footer, /PROGRESS \+ WARD RANGE/, "the progress line must stay");
   assert.match(footer, /role="progressbar"/, "progress must still be exposed to a11y");
+  assert.doesNotMatch(footer, /<ProgressRing/, "one progress signal is enough in the dock");
+  assert.match(footer, /mushaf-dock flex/, "the dock must be one shallow row");
+  assert.match(footer, /mushaf\.prevShort/, "page back must be in the dock");
+  assert.match(footer, /mushaf\.nextShort/, "page forward must be in the dock");
+  assert.match(footer, /handleListen/, "the gold action must start recitation");
+  assert.match(footer, /mushaf\.textSize/, "text size must be reachable from the dock");
+  assert.match(footer, /toolsTrigger/, "the dock must own the tools trigger");
 });
 
-check("I13: one circular FAB owns a dismissible floating tool panel", () => {
-  assert.match(reader, /data-tools-fab/, "a single FAB must open the tools");
+check("I13: the dock owns a dismissible floating tool panel", () => {
+  assert.match(reader, /data-tools-fab/, "the dock's tools control must open the panel");
+  assert.doesNotMatch(reader, /mushaf-tools-fab/, "no stray FAB outside the dock");
   assert.match(reader, /data-tools-panel/, "the circular tools need one floating panel");
   assert.match(reader, /data-tools-overlay/, "an outside-click layer must close the panel");
   assert.match(reader, /onClick=\{closeTools\}/, "outside click and X must both close");

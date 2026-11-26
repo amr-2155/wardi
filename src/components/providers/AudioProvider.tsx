@@ -143,6 +143,10 @@ export function AudioPlayerProvider({
   const verseQueueRef = useRef<AudioTrackQueue | null>(null);
   const currentVerseIndexRef = useRef(0);
   const playerRef = useRef<UseAudioResult | null>(null);
+  /* play() is called right after loadSurah() resolves, before React has
+     re-rendered with the new track. A ref keeps play() from seeing the old
+     (null) state and silently doing nothing. */
+  const currentTrackRef = useRef<AudioTrack | null>(null);
   // Per-verse retry budget for fail-stop handling (reset on every new track)
   const verseRetryRef = useRef<{ url: string; retried: boolean }>({
     url: "",
@@ -163,12 +167,19 @@ export function AudioPlayerProvider({
     [settings.selectedReciter]
   );
 
+  /* Every track assignment goes through this setter so the ref is updated
+     synchronously, not only after the next render. */
+  const setTrack = useCallback((track: AudioTrack | null) => {
+    currentTrackRef.current = track;
+    setCurrentTrack(track);
+  }, []);
+
   // onEnded callback for verse-to-verse transition
   const handleVerseEnded = useCallback(() => {
     const queue = verseQueueRef.current;
     const player = playerRef.current;
     if (!queue || queue.tracks.length === 0 || !player) {
-      setCurrentTrack(null);
+      setTrack(null);
       return;
     }
 
@@ -178,7 +189,7 @@ export function AudioPlayerProvider({
     );
     if (nextIndex !== null) {
       const nextTrack = queue.tracks[nextIndex];
-      setCurrentTrack(nextTrack);
+      setTrack(nextTrack);
       setCurrentVerseIndex(nextIndex);
       persistResume(queue.surah, nextTrack.ayah ?? nextIndex + 1);
       player.load(nextTrack.url);
@@ -190,9 +201,9 @@ export function AudioPlayerProvider({
       // Final verse ended — surah genuinely complete: clear saved position
       clearAudioResume();
       setResumePosition(null);
-      setCurrentTrack(null);
+      setTrack(null);
     }
-  }, [persistResume]);
+  }, [persistResume, setTrack]);
 
   // --- Core audio hook (HTML5 Audio) ---
   // The onEnded callback handles verse-to-verse sequential playback.
@@ -212,6 +223,10 @@ export function AudioPlayerProvider({
   useEffect(() => {
     currentVerseIndexRef.current = currentVerseIndex;
   }, [currentVerseIndex]);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
 
   // --- Load reciters + surahs on mount ---
   const loadReciters = useCallback(async () => {
@@ -344,7 +359,7 @@ export function AudioPlayerProvider({
       // Clear previous queue
       setVerseQueue(null);
       setCurrentVerseIndex(startIndex);
-      setCurrentTrack(null);
+      setTrack(null);
 
       try {
         const queue = await audioProvider.getSurahAudioQueue(
@@ -357,13 +372,13 @@ export function AudioPlayerProvider({
               ? "تعذر العثور على ملف الصوت للسورة."
               : "يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أعد المحاولة."
           );
-          setCurrentTrack(null);
+          setTrack(null);
           return;
         }
 
         setVerseQueue(queue);
         const firstTrack = queue.tracks[startIndex] ?? queue.tracks[0];
-        setCurrentTrack(firstTrack);
+        setTrack(firstTrack);
         setCurrentVerseIndex(startIndex);
 
         // Load the first verse into the player
@@ -374,10 +389,10 @@ export function AudioPlayerProvider({
             ? "حدث خطأ أثناء تحميل الصوت."
             : "يبدو أنك غير متصل بالإنترنت. تحقق من الاتصال ثم أعد المحاولة."
         );
-        setCurrentTrack(null);
+        setTrack(null);
       }
     },
-    [settings.selectedReciter, surahs, player]
+    [settings.selectedReciter, surahs, player, setTrack]
   );
 
   const selectReciter = useCallback(
@@ -425,9 +440,11 @@ export function AudioPlayerProvider({
   }, [reciters, loadSurahInternal]);
 
   const playCb = useCallback(() => {
-    if (!currentTrack) return;
+    /* Never bail on a stale render-time `currentTrack`: loadSurah() sets the
+       track and resolves in the same async action that then calls play(). */
+    if (!currentTrackRef.current) return;
     void player.play();
-  }, [currentTrack, player]);
+  }, [player]);
 
   const pauseCb = useCallback(() => {
     player.pause();
@@ -472,19 +489,19 @@ export function AudioPlayerProvider({
     player.stop();
     setCurrentReciter(null);
     setCurrentSurah(null);
-    setCurrentTrack(null);
+    setTrack(null);
     setVerseQueue(null);
     setCurrentVerseIndex(0);
     setError(null);
-  }, [player]);
+  }, [player, setTrack]);
 
   const stopCb = useCallback(() => {
     player.stop();
-    setCurrentTrack(null);
+    setTrack(null);
     setVerseQueue(null);
     setCurrentVerseIndex(0);
     setError(null);
-  }, [player]);
+  }, [player, setTrack]);
 
   // Restore playback position when a surah is reloaded
   useEffect(() => {

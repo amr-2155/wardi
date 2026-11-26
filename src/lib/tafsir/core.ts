@@ -99,8 +99,18 @@ export function validateRichTafsirEntry(value: unknown): value is RichTafsirEntr
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   if (typeof v.ref !== "string" || !/^\d{1,3}:\d{1,3}$/.test(v.ref)) return false;
-  if (v.reviewStatus !== "reviewed" && v.reviewStatus !== "draft") return false;
-  if (!isNonEmptyString(v.reviewedDate)) return false;
+  if (
+    v.reviewStatus !== "reviewed" &&
+    v.reviewStatus !== "published" &&
+    v.reviewStatus !== "draft"
+  ) {
+    return false;
+  }
+  if (v.reviewStatus === "published") {
+    if (!isNonEmptyString(v.sourceDate)) return false;
+  } else if (!isNonEmptyString(v.reviewedDate)) {
+    return false;
+  }
   if (!isNonEmptyString(v.sourceEdition)) return false;
 
   const hasSubstance =
@@ -158,19 +168,30 @@ export function resolveTafsirContext(
 
 export function getCuratedEntry(
   ref: string,
-  curated: RichTafsirEntry[]
+  curated: RichTafsirEntry[],
+  published: RichTafsirEntry[] = []
 ): RichTafsirEntry | null {
-  return curated.find((entry) => entry.ref === ref) ?? null;
+  /* The in-house reviewed pack always wins. Published text is a fallback, and
+     is revalidated here so a corrupted async payload can never be rendered. */
+  return (
+    curated.find((entry) => entry.ref === ref) ??
+    published.find(
+      (entry) => entry.ref === ref && validateRichTafsirEntry(entry)
+    ) ??
+    null
+  );
 }
 
 /**
- * Synchronous, safe selection used by the UI: a manually reviewed entry if one
- * exists, otherwise an honest "unavailable". It never calls a model.
+ * Synchronous, safe selection used by the UI: reviewed entry first, then a
+ * hash-verified published edition, otherwise an honest "unavailable".
+ * It never calls a model.
  */
 export function selectTafsir(args: {
   ref: string;
   dataset: QuranDataset | null;
   curated: RichTafsirEntry[];
+  published?: RichTafsirEntry[];
   aiEnabled?: boolean;
   locale?: "ar" | "en";
 }): TafsirResult {
@@ -191,7 +212,7 @@ export function selectTafsir(args: {
       aiEnabled: Boolean(args.aiEnabled),
     };
   }
-  const entry = getCuratedEntry(context.ref, args.curated);
+  const entry = getCuratedEntry(context.ref, args.curated, args.published);
   if (entry) {
     return { status: "curated", context, entry, provider: "curated" };
   }
@@ -324,13 +345,15 @@ export function groundEntry(entry: RichTafsirEntry | null): string | undefined {
 }
 
 /**
- * Async path: prefer the reviewed entry; only when none exists AND a trusted
- * provider is enabled does it ask the model, and only validated output ships.
+ * Async path: prefer a reviewed entry, then a published one; only when neither
+ * exists AND a trusted provider is enabled does it ask the model, and only
+ * validated output ships.
  */
 export async function generateTafsir(args: {
   ref: string;
   dataset: QuranDataset | null;
   curated: RichTafsirEntry[];
+  published?: RichTafsirEntry[];
   provider: TafsirProvider | null;
   locale?: "ar" | "en";
 }): Promise<TafsirResult> {
@@ -338,6 +361,7 @@ export async function generateTafsir(args: {
     ref: args.ref,
     dataset: args.dataset,
     curated: args.curated,
+    published: args.published,
     aiEnabled: Boolean(args.provider?.enabled),
     locale: args.locale,
   });
@@ -345,7 +369,9 @@ export async function generateTafsir(args: {
   if (base.status !== "unavailable") return base;
   if (!base.context || !args.provider?.enabled) return base;
 
-  const grounding = groundEntry(getCuratedEntry(base.context.ref, args.curated));
+  const grounding = groundEntry(
+    getCuratedEntry(base.context.ref, args.curated, args.published)
+  );
   try {
     const raw = await args.provider.complete({
       system: TAFSIR_SYSTEM_PROMPT,

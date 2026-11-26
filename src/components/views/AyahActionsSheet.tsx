@@ -10,6 +10,7 @@ import { TafsirSections } from "@/components/TafsirSections";
 import { Sheet } from "@/components/ui";
 import { useLocale } from "@/lib/locale";
 import { buildTafsirModel, isTafsirAIEnabled } from "@/lib/tafsir";
+import { usePublishedTafsirSource } from "@/hooks/usePublishedTafsirSource";
 import { useTafsirGeneration } from "@/hooks/useTafsirGeneration";
 import type { QuranData } from "@/hooks/useQuran";
 import { shareVerseCard } from "@/lib/shareCard";
@@ -22,7 +23,8 @@ import { shareVerseCard } from "@/lib/shareCard";
  * hash-frozen anyway. Every action here reuses an existing engine:
  * - listen: AudioProvider.loadSurah(chapter, ayah) + play (continues the surah)
  * - bookmark/copy/share: the same handlers as AyahView
- * - tafsir: curated entries only (24 ayahs), honest empty state otherwise
+ * - tafsir: reviewed entries first, then the pinned published edition, with an
+ *   honest empty state when neither is available
  * - similar ayahs: verified relations only, hidden when absent
  * - translation: NO dataset backing exists, so the row is deliberately absent
  * - per-ayah notes: no system exists; nothing duplicated, daily tadabbur untouched
@@ -101,41 +103,49 @@ export function AyahActionsSheet({
     );
   };
 
-  const generation = useTafsirGeneration(ayahRef, quran.dataset);
+  const publishedSource = usePublishedTafsirSource(Boolean(ayahRef), ayahRef);
+  const generation = useTafsirGeneration(ayahRef, quran.dataset, publishedSource.entries);
 
   if (!ayahRef) return null;
 
   const title = resolved
     ? `${resolved.chapter.name} · ${resolved.verse.number}`
     : ayahRef;
-  const tafsir = ayahRef ? quran.getTafsir(ayahRef) : null;
-  /* The rich, reviewed source pack takes precedence; the legacy 24-entry
-     dataset remains the fallback so nothing that already worked disappears. */
-  const tafsirModel = ayahRef ? buildTafsirModel(ayahRef, quran.dataset) : null;
-  const shownModel = generation.model ?? tafsirModel;
+  const tafsir = quran.getTafsir(ayahRef);
+  /* Reviewed pack first, then the pinned published edition; the legacy 24-entry
+     dataset stays as the final fallback so nothing that worked disappears. */
+  const tafsirModel = buildTafsirModel(ayahRef, quran.dataset, publishedSource.entries);
+  const shownModel =
+    tafsirModel.status === "unavailable" ? (generation.model ?? tafsirModel) : tafsirModel;
   const related = ayahRef ? quran.getRelated(ayahRef) : null;
   const bookmarked = ayahRef ? quran.isBookmarked(ayahRef) : false;
-  /* Why there is no reviewed article, phrased honestly instead of a generic
-     "no tafsir" line: the user deserves to know whether the verse is missing
-     from the dataset, the ref is wrong, or the pack simply has not covered it
-     yet — and whether an AI fallback exists in this build. */
+  /* Why there is no source, phrased honestly instead of a generic
+     "no tafsir" line: missing dataset, bad ref, still-loading asset, failed
+     fingerprint, or no source at all. */
   const tafsirNotice =
-    tafsirModel?.status === "unavailable"
-      ? tafsirModel.reason === "no-dataset"
+    tafsirModel.status !== "unavailable"
+      ? "tadabbur.noTafsirHint"
+      : tafsirModel.reason === "no-dataset"
         ? "tafsir.unavailable.noDataset"
         : tafsirModel.reason === "invalid-ref"
           ? "tafsir.unavailable.invalidRef"
-          : tafsirModel.aiEnabled
-            ? "tafsir.unavailable.noSource"
-            : "tafsir.unavailable.aiDisabled"
-      : "tadabbur.noTafsirHint";
+          : publishedSource.state === "loading"
+            ? "tafsir.sourceLoading"
+            : publishedSource.state === "error"
+              ? "tafsir.sourceUnavailable"
+              : tafsirModel.aiEnabled
+                ? "tafsir.unavailable.noSource"
+                : "tafsir.unavailable.aiDisabled";
 
   const playingThis =
     !!resolved &&
     audio.currentTrack?.surah === resolved.chapter.id &&
     audio.currentTrack?.ayah === resolved.verse.number &&
     audio.player.isPlaying;
-  const busy = starting || audio.player.isLoading;
+  // `isLoading` is also true before any track exists (state === "idle"), which
+  // would disable the very button that opens the reciter picker. Only a real
+  // in-flight load should block a second tap.
+  const busy = starting || audio.player.state === "loading";
 
   return (
     <>

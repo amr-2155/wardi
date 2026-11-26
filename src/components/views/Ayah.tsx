@@ -1,7 +1,9 @@
 "use client";
 
-import { ArrowRight, BookMarked, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, BookMarked, CircleAlert, Pause, Play, ShieldCheck, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { ReciterSheet } from "@/components/audio/ReciterSheet";
+import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { AyahActionBar, AyahMetaFooter, RelatedItem, SurahBadge, VerseText } from "@/components/quran";
 import { TafsirPanel } from "@/components/TafsirPanel";
 import { TafsirSections } from "@/components/TafsirSections";
@@ -9,6 +11,7 @@ import { ScreenHeader } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { useLocale, type Locale } from "@/lib/locale";
 import { buildTafsirModel, isTafsirAIEnabled } from "@/lib/tafsir";
+import { usePublishedTafsirSource } from "@/hooks/usePublishedTafsirSource";
 import { useTafsirGeneration } from "@/hooks/useTafsirGeneration";
 import type { QuranData } from "@/hooks/useQuran";
 import { getGlobalId, parseAyahRef, sha256Text } from "@/lib/quran/validate";
@@ -32,27 +35,40 @@ export function AyahView({
   onOpenAyah: (ayahId: string) => void;
 }) {
   const { t, locale } = useLocale();
+  const audio = useAudioPlayer();
   const [copied, setCopied] = useState(false);
+  const [reciterOpen, setReciterOpen] = useState(false);
+  const [startingFor, setStartingFor] = useState<string | null>(null);
   const resolved = quran.getAyah(ayahId);
   const related = quran.getRelated(ayahId);
   const topics = quran.getTopics(ayahId);
   const tafsir = quran.getTafsir(ayahId);
-  /* Reviewed rich entry first, legacy curated entry as the fallback. */
-  const tafsirModel = buildTafsirModel(ayahId, quran.dataset);
-  const generation = useTafsirGeneration(ayahId, quran.dataset);
-  const shownModel = generation.model ?? tafsirModel;
-  /* When neither source has a reviewed article, state WHY honestly rather than
-     silently hiding the tafsir section (AI is disabled in this build). */
+  /* The effect-only loader keeps the network out of render; the loader caches
+     a verified pack for the session, and the ayah ref lets a failed load retry
+     when the reader moves to another verse. */
+  const publishedSource = usePublishedTafsirSource(true, ayahId);
+  /* Reviewed rich entry first, then the pinned published edition. */
+  const tafsirModel = buildTafsirModel(ayahId, quran.dataset, publishedSource.entries);
+  const generation = useTafsirGeneration(ayahId, quran.dataset, publishedSource.entries);
+  /* A curated or published source always beats a generated draft, including a
+     draft that started before the async source finished loading. */
+  const shownModel =
+    tafsirModel.status === "unavailable" ? (generation.model ?? tafsirModel) : tafsirModel;
+  /* State WHY honestly rather than silently hiding the tafsir section. */
   const tafsirNotice =
-    tafsirModel?.status === "unavailable"
-      ? tafsirModel.reason === "no-dataset"
+    tafsirModel.status !== "unavailable"
+      ? "tadabbur.noTafsirHint"
+      : tafsirModel.reason === "no-dataset"
         ? "tafsir.unavailable.noDataset"
         : tafsirModel.reason === "invalid-ref"
           ? "tafsir.unavailable.invalidRef"
-          : tafsirModel.aiEnabled
-            ? "tafsir.unavailable.noSource"
-            : "tafsir.unavailable.aiDisabled"
-      : "tadabbur.noTafsirHint";
+          : publishedSource.state === "loading"
+            ? "tafsir.sourceLoading"
+            : publishedSource.state === "error"
+              ? "tafsir.sourceUnavailable"
+              : tafsirModel.aiEnabled
+                ? "tafsir.unavailable.noSource"
+                : "tafsir.unavailable.aiDisabled";
   const bookmarked = quran.isBookmarked(ayahId);
 
   /* "Verse not found" would blame the reference, but a failed dataset load makes
@@ -74,6 +90,31 @@ export function AyahView({
 
   const { verse, chapter } = resolved;
   const parsed = parseAyahRef(ayahId);
+
+  const starting = startingFor === ayahId;
+  const playingThis =
+    audio.currentTrack?.surah === chapter.id &&
+    audio.currentTrack?.ayah === verse.number &&
+    audio.player.isPlaying;
+  // `isLoading` is also true before any track exists (state === "idle"), which
+  // would disable the very button that opens the reciter picker. Only a real
+  // in-flight load should block a second tap.
+  const busy = starting || audio.player.state === "loading";
+
+  const handleListen = async () => {
+    if (starting) return;
+    if (!audio.currentReciter) {
+      setReciterOpen(true);
+      return;
+    }
+    setStartingFor(ayahId);
+    try {
+      await audio.actions.loadSurah(chapter.id, verse.number);
+      audio.actions.play();
+    } finally {
+      setStartingFor(null);
+    }
+  };
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(verse.text);
@@ -176,6 +217,50 @@ export function AyahView({
         </button>
       </div>
 
+      {/* RECITATION — same engine as the reader's ayah menu. */}
+      <div className="mt-2">
+        {playingThis ? (
+          <button
+            type="button"
+            onClick={() => audio.actions.pause()}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gold text-sm font-black text-primary-deep transition active:scale-[0.98]"
+          >
+            <Pause size={17} />
+            {t("audio.pause")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleListen()}
+            disabled={busy}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gold text-sm font-black text-primary-deep transition active:scale-[0.98] disabled:opacity-50"
+          >
+            <Play size={17} />
+            {busy ? t("mushaf.listenLoading") : t("audio.play")}
+          </button>
+        )}
+        {!audio.currentReciter && (
+          <p className="mt-2 text-center text-[11px] font-bold text-muted">
+            {t("ayahMenu.pickReciterFirst")}
+          </p>
+        )}
+        {audio.error && (
+          <div className="mt-2 flex items-center justify-center gap-1.5 text-center">
+            <CircleAlert size={13} className="shrink-0 text-danger" />
+            <p className="text-[11px] font-bold text-danger">
+              {t("audio.error")}: {audio.error}
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleListen()}
+              className="text-[11px] font-black text-primary underline"
+            >
+              {t("audio.retry")}
+            </button>
+          </div>
+        )}
+      </div>
+
       {copied && (
         <p className="mt-2 animate-fade-up text-center text-[11px] font-bold text-success">
           {t("ayah.copied")}
@@ -268,6 +353,8 @@ export function AyahView({
         </p>
         <bdi dir="ltr" className="block break-all">{DATASET_META.sourceUrl}</bdi>
       </div>
+
+      <ReciterSheet open={reciterOpen} onClose={() => setReciterOpen(false)} />
     </div>
   );
 }

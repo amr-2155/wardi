@@ -11,7 +11,8 @@
  * - the verse shown must resolve through quran.getAyah (no invented ref)
  * - translation has NO dataset backing, so no translation row may exist
  * - similar ayahs render only from verified relations (getRelated)
- * - tafsir renders only curated entries, with the honest empty state
+ * - tafsir prefers reviewed entries, then the pinned published edition, with
+ *   an honest empty state and a lazy load gated on an actual ayah tap
  * - MushafReader exposes no ayah tap surface (image pages carry no ayah
  *   coordinates); byte-identity is owned solely by test-w2.mjs C6
  */
@@ -104,10 +105,20 @@ check("M5: bookmark, copy and share reuse the AyahView handlers", () => {
   assert.match(src, /shareVerseCard\(/, "share must use the card ladder with text fallback");
 });
 
-check("M6: tafsir shows curated entries with the honest empty state", () => {
+check("M6: tafsir prefers reviewed, then published, with the honest empty state", () => {
   const src = read(SHEET);
   assert.match(src, /quran\.getTafsir\(ayahRef\)/, "must read the curated store");
   assert.match(src, /TafsirSections/, "must reuse the tafsir renderer with its source credit");
+  assert.match(
+    src,
+    /buildTafsirModel\(ayahRef, quran\.dataset, publishedSource\.entries\)/,
+    "must layer reviewed entries above the pinned published edition"
+  );
+  assert.match(
+    src,
+    /usePublishedTafsirSource\(Boolean\(ayahRef\), ayahRef\)/,
+    "the 2.9 MB pack must load only when an ayah is actually open"
+  );
   assert.match(src, /tadabbur\.noTafsirTitle/, "a missing entry must say so, never invent tafsir");
 });
 
@@ -174,6 +185,77 @@ check("M12: MushafReader is untouched (image pages have no ayah to tap)", () => 
 check("M13: the sources under test were really read", () => {
   assert.ok(read(SHEET).length > 2000, "the sheet file looks empty");
   assert.ok(read(READER).includes("AyahActionsSheet"), "the reader must reference the sheet");
+});
+
+check("M14: the full ayah screen offers the same recitation control", () => {
+  const src = read("src/components/views/Ayah.tsx");
+  assert.match(src, /useAudioPlayer\(\)/, "the ayah screen must reuse the audio provider");
+  assert.match(
+    src,
+    /loadSurah\(chapter\.id, verse\.number\)/,
+    "recitation must start at the opened ayah"
+  );
+  assert.match(src, /audio\.actions\.play\(\)/, "play must go through the provider");
+  assert.match(src, /audio\.actions\.pause\(\)/, "the same control must pause");
+  assert.match(src, /ReciterSheet/, "a missing reciter must open the shared picker");
+  assert.match(src, /audio\.error/, "engine errors must surface, not vanish");
+});
+
+check("M15: a cold player never disables the listen button", () => {
+  /* useAudio reports isLoading for BOTH "idle" and "loading". Keying the
+     button off isLoading left every fresh reader stuck on "loading recitation"
+     with no way to open the reciter picker. */
+  for (const file of [
+    SHEET,
+    "src/components/views/Ayah.tsx",
+    "src/components/TadabburSheet.tsx",
+  ]) {
+    const src = read(file);
+    assert.doesNotMatch(src, /audio\.player\.isLoading/, file);
+    assert.match(src, /audio\.player\.state === "loading"/, file);
+  }
+});
+
+check("M16: play() cannot miss a track loaded in the same async action", () => {
+  /* loadSurah() sets currentTrack, then the caller's await continuation calls
+     play() before React has re-rendered. A render-time closure saw null and
+     returned early, so the control looked right but never produced audio. */
+  const src = read("src/components/providers/AudioProvider.tsx");
+  assert.match(src, /currentTrackRef = useRef<AudioTrack \| null>\(null\)/);
+  assert.match(src, /currentTrackRef\.current = track/);
+  assert.match(src, /setTrack\(firstTrack\)/);
+  assert.match(
+    src,
+    /const playCb = useCallback\(\(\) => \{[\s\S]{0,240}currentTrackRef\.current/
+  );
+  assert.doesNotMatch(
+    src,
+    /const playCb = useCallback\(\(\) => \{\s*if \(!currentTrack\) return;/
+  );
+});
+
+check("M17: a mushaf tafsir deep link reaches the ayah screen", () => {
+  /* The mushaf view used to be checked before quranRoute, so the "full tafsir"
+     CTA set the route but kept rendering the reader. */
+  const src = read("src/app/page.tsx");
+  assert.match(src, /const renderQuranRoute = \(\) => \{/);
+  const routeRenderer = src.slice(src.indexOf("const renderQuranRoute"));
+  assert.match(routeRenderer, /quranRoute\?\.mode === "ayah"/);
+  assert.match(routeRenderer, /<AyahView\b/);
+  assert.match(routeRenderer, /quranRoute\?\.mode === "reader"/);
+  assert.match(routeRenderer, /<QuranReaderView\b/);
+
+  const mushaf = src.slice(
+    src.indexOf('if (view === "mushaf")'),
+    src.indexOf('if (view === "prayer")')
+  );
+  assert.ok(mushaf.length > 0, "the mushaf branch must exist");
+  assert.match(mushaf, /const routed = renderQuranRoute\(\);/);
+  assert.match(mushaf, /if \(routed\) return routed;/);
+  assert.ok(
+    mushaf.indexOf("if (routed) return routed;") < mushaf.indexOf("<MushafReaderView"),
+    "the route must win before the reader is rendered"
+  );
 });
 
 console.log(`\nAyah menu: ${passed}/${passed + failed} passed`);

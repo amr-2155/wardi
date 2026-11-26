@@ -47,10 +47,22 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
   const available = model as AvailableModel;
   const { context, entry } = available;
   const generated = available.status === "generated";
+  const published = entry.reviewStatus === "published";
 
   const copyText = () => {
     const lines: string[] = [`${context.chapterName} — ${context.ayahNumber}`, `«${context.verseText}»`];
     lines.push(`${t("tafsir.sourceLabel")}: ${entry.sourceEdition}`);
+    /* The copied/shared text leaves this screen, so it must carry the same
+       honesty label as the panel — otherwise attribution is silently lost. */
+    if (published) {
+      lines.push(
+        t("tafsir.publishedDisclaimer", {
+          source: entry.sourceEdition,
+          date: entry.sourceDate ?? "",
+        })
+      );
+    }
+    if (generated) lines.push(t("tafsir.generatedDisclaimer"));
     if (entry.overview) lines.push(`${t("tafsir.section.overview")}: ${entry.overview}`);
     if (entry.vocabulary?.length) {
       lines.push(t("tafsir.section.vocabulary"));
@@ -68,7 +80,11 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
     }
     if (entry.detailed?.length) {
       lines.push(t("tafsir.section.detailed"));
-      entry.detailed.forEach((p, i) => lines.push(`${i + 1}. ${p}`));
+      /* Published text is copied verbatim in the panel, so the export must not
+         invent `1./2.` numbering that the source never had (upstream headings
+         and bullet markers live inside these paragraphs). Reviewed/generated
+         entries keep their original numbered formatting. */
+      entry.detailed.forEach((p, i) => lines.push(published ? p : `${i + 1}. ${p}`));
     }
     if (entry.practice?.length) {
       lines.push(t("tadabbur.section.live"));
@@ -155,22 +171,33 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       {/* REVIEW STATUS */}
       <div
         className={`flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-[11px] leading-5 ${
-          generated
+          generated || published
             ? "border-gold/40 bg-gold-soft/40 text-ink"
             : "border-success/30 bg-surface-2 text-muted"
         }`}
       >
         {generated ? (
           <Info size={13} className="mt-0.5 shrink-0 text-gold-strong" />
+        ) : published ? (
+          <BookOpen size={13} className="mt-0.5 shrink-0 text-gold-strong" />
         ) : (
           <ShieldCheck size={13} className="mt-0.5 shrink-0 text-success" />
         )}
         <span>
-          {generated ? t("tafsir.badge.generated") : t("tafsir.badge.reviewed")}
+          {generated
+            ? t("tafsir.badge.generated")
+            : published
+              ? t("tafsir.badge.published")
+              : t("tafsir.badge.reviewed")}
           <span className="mt-1 block text-[10px] opacity-80">
             {generated
               ? t("tafsir.badge.generatedHint")
-              : `${entry.sourceEdition} · ${t("tafsir.badge.reviewedOn", { date: entry.reviewedDate })}`}
+              : published
+                ? t("tafsir.badge.publishedHint", {
+                    edition: entry.sourceEdition,
+                    date: entry.sourceDate ?? "",
+                  })
+                : `${entry.sourceEdition} · ${t("tafsir.badge.reviewedOn", { date: entry.reviewedDate ?? "" })}`}
           </span>
         </span>
       </div>
@@ -342,8 +369,23 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       </div>
 
       <div className="flex items-start gap-1.5 rounded-2xl border border-line bg-surface-2 px-3 py-2.5 text-[10px] leading-5 text-muted">
-        <ShieldCheck size={13} className="mt-0.5 shrink-0 text-success" />
-        <p>{t("tafsir.richDisclaimer", { source: entry.sourceEdition })}</p>
+        {generated ? (
+          <Info size={13} className="mt-0.5 shrink-0 text-gold-strong" />
+        ) : published ? (
+          <BookOpen size={13} className="mt-0.5 shrink-0 text-gold-strong" />
+        ) : (
+          <ShieldCheck size={13} className="mt-0.5 shrink-0 text-success" />
+        )}
+        <p>
+          {generated
+            ? t("tafsir.generatedDisclaimer")
+            : published
+              ? t("tafsir.publishedDisclaimer", {
+                  source: entry.sourceEdition,
+                  date: entry.sourceDate ?? "",
+                })
+              : t("tafsir.richDisclaimer", { source: entry.sourceEdition })}
+        </p>
       </div>
     </div>
   );

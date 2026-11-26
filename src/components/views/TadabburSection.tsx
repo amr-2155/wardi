@@ -41,6 +41,7 @@ export function TadabburSection({
   wardDay,
   quran,
   showHeader = true,
+  sourceNotice = null,
 }: {
   candidate: string;
   candidateResolved: { chapter: { name: string; verses: { number: number; text: string }[] }; verse: { number: number; text: string } } | null;
@@ -48,6 +49,8 @@ export function TadabburSection({
   quran: QuranData;
   /** The sheet supplies its own title, so it hides the card heading. */
   showHeader?: boolean;
+  /** Honest loading/failure key while a published tafsir is pending or rejected. */
+  sourceNotice?: string | null;
 }) {
   const { t } = useLocale();
   const { completeTadabbur } = quran;
@@ -334,6 +337,15 @@ export function TadabburSection({
                     </>
                   )}
                 </button>
+              </div>
+            ) : sourceNotice ? (
+              <div className="border-b border-line px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Sprout size={14} className="text-gold-strong" />
+                  <span className="text-xs font-black text-gold-strong">
+                    {t(sourceNotice)}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="border-b border-line px-5 py-4">

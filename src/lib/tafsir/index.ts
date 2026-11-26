@@ -2,7 +2,7 @@ import type { QuranDataset } from "@/lib/quran/types";
 import { generateTafsir, selectTafsir } from "./core";
 import { createRemoteProvider } from "./provider";
 import { REVIEWED_TAFSIR } from "./sources";
-import type { TafsirResult } from "./types";
+import type { RichTafsirEntry, TafsirResult } from "./types";
 
 export { TAFSIR_SYSTEM_PROMPT, TAFSIR_SYSTEM_PROMPT_VERSION } from "./systemPrompt";
 export {
@@ -24,18 +24,24 @@ export type {
   TafsirContext,
   TafsirProvider,
   TafsirResult,
+  TafsirReviewStatus,
   TafsirUnavailableReason,
 } from "./types";
 
 /**
- * Synchronous model for rendering: reviewed entry, or an honest unavailable
- * state. Never calls the network.
+ * Synchronous model for rendering: reviewed entry first, then a published
+ * source, or an honest unavailable state. Never calls the network.
  */
-export function buildTafsirModel(ref: string, dataset: QuranDataset | null): TafsirResult {
+export function buildTafsirModel(
+  ref: string,
+  dataset: QuranDataset | null,
+  published: RichTafsirEntry[] = []
+): TafsirResult {
   return selectTafsir({
     ref,
     dataset,
     curated: REVIEWED_TAFSIR,
+    published,
     aiEnabled: Boolean(createRemoteProvider()),
   });
 }
@@ -43,12 +49,14 @@ export function buildTafsirModel(ref: string, dataset: QuranDataset | null): Taf
 /** Async path used by an explicit "generate" action when a proxy is configured. */
 export function generateTafsirLive(
   ref: string,
-  dataset: QuranDataset | null
+  dataset: QuranDataset | null,
+  published: RichTafsirEntry[] = []
 ): Promise<TafsirResult> {
   return generateTafsir({
     ref,
     dataset,
     curated: REVIEWED_TAFSIR,
+    published,
     provider: createRemoteProvider(),
   });
 }

@@ -20,6 +20,10 @@
 # production
 /build
 
+# Android reader builds are published as GitHub Releases, not commit blobs.
+# (The first shipped APK stays tracked; later builds are attached to tags.)
+/dist/*.apk
+
 # misc
 .DS_Store
 *.pem
