@@ -506,6 +506,7 @@ function DockButton({
       aria-pressed={active || undefined}
       aria-disabled={disabled || undefined}
       data-active={active || undefined}
+      data-primary={primary || undefined}
       data-tools-fab={toolsTrigger || undefined}
       className={`mushaf-dock-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
         disabled ? "pointer-events-none opacity-35" : ""
@@ -2377,6 +2378,17 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 })}
               </span>
             )}
+            {info && (
+              <span
+                className="block w-full truncate text-[10px] font-bold leading-tight"
+                style={{ color: "var(--mgold-strong)" }}
+              >
+                {t("mushaf.pageOf", {
+                  page: toArabicIndic(info.page),
+                  total: toArabicIndic(data.settings.totalPages),
+                })}
+              </span>
+            )}
           </button>
 
           {/* CLOSE — puts the tools away without leaving the reader. */}
@@ -2919,15 +2931,17 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                       total: toArabicIndic(rangeTotal),
                     })
               }
-              className="mushaf-bar-btn shrink-0 rounded-xl px-2.5 py-1 text-center leading-tight"
+              className="mushaf-bar-btn shrink-0 rounded-xl px-1 py-0.5 text-start leading-tight"
             >
-              <span className="block text-[8px] font-bold opacity-70">
-                {isQuranMode ? t("mushaf.quranMode") : t("mushaf.wardLabel")}
-              </span>
-              <span className="num-ltr block whitespace-nowrap text-[11px] font-black tabular-nums">
-                {isQuranMode
-                  ? `${toArabicIndic(Math.max(0, (page ?? range.start) - range.start + 1))}/${toArabicIndic(rangeTotal)}`
-                  : `${toArabicIndic(wardReached)}/${toArabicIndic(rangeTotal)}`}
+              <span className="block whitespace-nowrap text-[10.5px] font-black tabular-nums">
+                {t("mushaf.wardCount", {
+                  done: toArabicIndic(
+                    isQuranMode
+                      ? Math.max(0, (page ?? range.start) - range.start + 1)
+                      : wardReached,
+                  ),
+                  total: toArabicIndic(rangeTotal),
+                })}
               </span>
             </button>
             <div
@@ -2944,7 +2958,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
               />
             </div>
             <span
-              className="num-ltr shrink-0 whitespace-nowrap text-[12px] font-black tabular-nums"
+              className="num-ltr hidden shrink-0 whitespace-nowrap text-[12px] font-black tabular-nums"
               style={{ color: "var(--mmuted)" }}
             >
               {toArabicIndic(Math.round(donePct))}%
@@ -2991,7 +3005,14 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
               }}
             />
             <DockButton
-              icon={audio.player.isPlaying ? <Pause size={17} /> : <Play size={17} />}
+              icon={
+                <span className="flex items-center gap-1.5">
+                  {audio.player.isPlaying ? <Pause size={15} /> : <Play size={15} />}
+                  <span className="text-[11px] font-black leading-none">
+                    {audio.player.isPlaying ? t("mushaf.listenStopShort") : t("mushaf.listenShort")}
+                  </span>
+                </span>
+              }
               label={t(audio.player.isPlaying ? "mushaf.listenPause" : "mushaf.listenPlay")}
               active={audio.player.isPlaying}
               disabled={page === null}

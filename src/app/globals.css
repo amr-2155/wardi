@@ -602,3 +602,34 @@ input[type=number]{appearance:textfield}
   animation: ring-fill 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+
+/* ── Quran page redesign (branch: quran-page-redesign) ─────────────────
+   One rounded dock instead of five loose circles; the primary action reads
+   as a button with a word, the other four stay quiet icons. */
+.mushaf-dock{
+  margin:0 .85rem .35rem;
+  padding:.4rem .55rem;
+  gap:.35rem;
+  border-radius:1.6rem;
+  background:color-mix(in oklab, var(--mbar) 93%, transparent);
+  border:1px solid var(--mbar-border);
+  box-shadow:0 16px 36px -20px rgba(0,0,0,.75);
+  backdrop-filter:blur(12px);
+}
+.mushaf-dock-btn{
+  background:transparent !important;
+  border-color:transparent !important;
+  color:var(--mbar-ink);
+}
+.mushaf-dock-btn[data-primary]{
+  width:auto !important;
+  padding:0 1.05rem;
+  border-radius:999px !important;
+  background:var(--mgold) !important;
+  color:var(--mpaper-top) !important;
+  border:1px solid color-mix(in oklab, var(--mgold-strong) 72%, transparent) !important;
+}
+.mushaf-dock-btn[data-active]:not([data-primary]){
+  background:color-mix(in oklab, var(--mgold) 22%, transparent) !important;
+  color:var(--mgold-strong) !important;
+}
