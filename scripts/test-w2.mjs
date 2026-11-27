@@ -208,8 +208,14 @@ const FROZEN_HASHES = {
       duplicate progress ring left the footer. The dock is still a shortcut
       layer over the tools panel; no action was added or removed, and the
       counting/completion/reflection semantics are untouched (test-immersive
-      I12/I13 now pin the dock contract). */
-  "src/components/views/MushafReader.tsx": "e9ab3060ee0d9b93",
+      I12/I13 now pin the dock contract).
+
+      Re-pinned 2026-11-27 (approved Phase 1): Quran mode now resolves its
+      resume page from one storage authority and both Continue surfaces use the
+      same target, so remounts (including tafsir Back) keep the saved page.
+      Ward-mode counting/completion/reflection semantics are unchanged, and the
+      new quran-restore harness pins the behaviour. */
+  "src/components/views/MushafReader.tsx": "bef8ca218e1fb5e6",
    /* Re-pinned 2026-11-18 (missing-change audit): a manual swipe or page flip
       no longer silently resumes auto-scroll — only the explicit Resume control
       does; a wheel/trackpad interaction pauses the same way; and completion for
