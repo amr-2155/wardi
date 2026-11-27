@@ -2673,27 +2673,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         {/* A paused auto-scroll needs one calm way back. This is a single small
             pill in the reserved foot band — not a second transport row — and it
             only appears while a scroll is explicitly paused. */}
-        {autoScrollOn && autoPaused && !celebration && page !== null && !isQuranMode && (
-          <div
-            className="pointer-events-none absolute inset-x-0 z-20 flex justify-center"
-            style={{
-              bottom: chrome
-                ? "calc(var(--mushaf-bar-bot-h, 0px) + 2.55rem)"
-                : "max(2.5rem, calc(var(--mushaf-safe-bottom, 0px) + 2.55rem))",
-            }}
-          >
-            <button
-              type="button"
-              data-auto-resume
-              onClick={() => setAutoPaused(false)}
-              className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-gold/45 bg-[color-mix(in_oklab,var(--mpaper-top)_92%,transparent)] px-3.5 py-1.5 text-[11px] font-black shadow-[0_10px_26px_-18px_rgba(0,0,0,0.9)] backdrop-blur-md transition active:scale-[0.98]"
-              style={{ color: "var(--mink)" }}
-            >
-              <Play size={11} className="rtl:-scale-x-100" />
-              {t("mushaf.autoResume")}
-            </button>
-          </div>
-        )}
+        {false && autoPaused && !celebration && page !== null && !isQuranMode && null}
 
         {/* bookmark toast */}
         {toastMsg && !celebration && (

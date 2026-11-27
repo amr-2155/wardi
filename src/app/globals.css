@@ -633,3 +633,22 @@ input[type=number]{appearance:textfield}
   background:color-mix(in oklab, var(--mgold) 22%, transparent) !important;
   color:var(--mgold-strong) !important;
 }
+
+/* ── Quran page redesign, round 2 (branch: quran-page-redesign) ────────
+   The paper now reaches the screen edges, with one thin gold frame drawn
+   as an overlay so it can never affect the page fit. */
+.mushaf-reader,
+.mushaf-reader main,
+.mushaf-stage{
+  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot)) !important;
+}
+.mushaf-stage:before{
+  content:"";
+  position:absolute;
+  inset:10px;
+  border:1px solid color-mix(in oklab, var(--mgold) 40%, transparent);
+  border-radius:10px;
+  pointer-events:none;
+  z-index:5;
+}
+.mushaf-stage:after{border-radius:10px}
