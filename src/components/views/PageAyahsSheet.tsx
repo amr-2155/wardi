@@ -1,7 +1,7 @@
 "use client";
 
 import { Bookmark, BookOpen, Check, CircleAlert, Copy, Pause, Play } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { ActionButton } from "@/components/quran";
@@ -51,14 +51,18 @@ export function PageAyahsSheet({
   );
 
   /* A page turn or a close while the sheet was up must not leak the previous
-     expansion into the next open. */
-  useEffect(() => {
+     expansion into the next open. Adjusted during render (the documented
+     alternative to a reset effect) so the lint rule on setState in effects
+     stays clean. */
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (!open) {
       setExpanded(null);
       setTafsirFor(null);
       setCopiedFor(null);
     }
-  }, [open, page]);
+  }
 
   /* The tafsir pack loads only while an ayah's tafsir is actually requested,
      and retries when the requested ayah changes. */

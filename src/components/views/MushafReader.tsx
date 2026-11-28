@@ -598,17 +598,16 @@ export function MushafReaderView({
      dressed in genuinely different directions; the value is read from ?skin=
      or a saved key on mount so a design round can be reviewed in the real app
      without shipping a settings screen for it. */
-  const [skin, setSkin] = useState<string>("");
-  useEffect(() => {
+  const [skin] = useState<string>(() => {
     try {
       const q = new URLSearchParams(window.location.search).get("skin");
       const saved = window.localStorage.getItem("ward:v2:mushaf:skin");
-      const v = (q || saved || "").trim();
-      if (v) setSkin(v);
+      return (q || saved || "").trim();
     } catch {
-      /* storage blocked: the default direction stays */
+      /* storage blocked or prerender: the default direction stays */
+      return "";
     }
-  }, []);
+  });
   /* Reading fit: how the page is scaled to fill the screen (persisted). */
   const [fitMode, setFitMode] = useState<MushafFitId>(() => loadMushafFit());
   /* Measured transparent-margin crop for the current page (null = uncropped). */

@@ -1,7 +1,7 @@
 "use client";
 
 import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, ScrollText, Search, Shuffle, Sparkles, Sunrise, Target } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { Card, SegmentControl, Sheet } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { VerseText } from "@/components/quran";
@@ -52,18 +52,17 @@ export function LibraryView({
   /* Last mushaf page the user actually read; null until mounted (the key
      lives in localStorage, unreadable during prerender) and null when the
      user never opened the mushaf, in which case the resume card hides. */
-  const [resumePage, setResumePage] = useState<number | null>(null);
+  const [resumePage] = useState<number | null>(() => {
+    try {
+      if (localStorage.getItem(MUSHAF_QURAN_LAST_PAGE_KEY) === null) return null;
+      return resolveQuranResumePage();
+    } catch {
+      // storage unavailable (or prerender); the card simply stays hidden
+      return null;
+    }
+  });
   const sectionsRef = useRef<HTMLDivElement>(null);
   const essentials = useDailyEssentials();
-
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(MUSHAF_QURAN_LAST_PAGE_KEY) === null) return;
-      setResumePage(resolveQuranResumePage());
-    } catch {
-      // storage unavailable; the card simply stays hidden
-    }
-  }, []);
 
   /* The input stays controlled by `query` so typing is always immediate, while
      the (heavier) result list renders from a deferred value. Keeps the field
