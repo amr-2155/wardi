@@ -5,13 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { ActionButton } from "@/components/quran";
+import { TafsirFoundation } from "@/components/TafsirFoundation";
 import { TafsirPanel } from "@/components/TafsirPanel";
 import { Sheet } from "@/components/ui";
 import { usePublishedTafsirSource } from "@/hooks/usePublishedTafsirSource";
 import type { QuranData } from "@/hooks/useQuran";
 import { useLocale } from "@/lib/locale";
 import { pageAyahs, toArabicIndic, type PageAyah } from "@/lib/quran/mushaf";
-import { buildTafsirModel } from "@/lib/tafsir";
+import { buildTafsirModel, type TafsirResult } from "@/lib/tafsir";
+import { getDraftTafsir, isTafsirDraftPreviewEnabled } from "@/lib/tafsir/drafts";
 
 /**
  * The mushaf pages are raster images: the app cannot know which pixels belong
@@ -67,6 +69,17 @@ export function PageAyahsSheet({
   const tafsirModel = tafsirFor
     ? buildTafsirModel(tafsirFor, quran.dataset, publishedSource.entries)
     : null;
+  /* Same draft preview as the full ayah screen: opt-in via ?tafsirDrafts=1,
+     and a shipped reviewed entry always wins. */
+  const draftEntry =
+    tafsirFor && isTafsirDraftPreviewEnabled() ? getDraftTafsir(tafsirFor) : null;
+  const sheetDisplayModel: TafsirResult | null =
+    tafsirModel &&
+    draftEntry &&
+    tafsirModel.status !== "unavailable" &&
+    tafsirModel.entry.reviewStatus !== "reviewed"
+      ? { status: "curated", context: tafsirModel.context, entry: draftEntry, provider: "curated" }
+      : tafsirModel;
 
   const playingRef =
     audio.currentSurah && audio.currentTrack?.ayah !== undefined && audio.player.isPlaying
@@ -177,9 +190,9 @@ export function PageAyahsSheet({
               </p>
             )}
 
-            {tafsirFor === a.ref && tafsirModel && (
+            {tafsirFor === a.ref && sheetDisplayModel && (
               <section className="mt-3">
-                {tafsirModel.status === "unavailable" ? (
+                {sheetDisplayModel.status === "unavailable" ? (
                   <p className="rounded-2xl border border-line bg-surface p-3 text-center text-[11px] font-bold text-muted">
                     {publishedSource.state === "loading"
                       ? t("tafsir.sourceLoading")
@@ -188,8 +201,20 @@ export function PageAyahsSheet({
                         : t("mushaf.tafsirUnavailable")}
                   </p>
                 ) : (
-                  <TafsirPanel model={tafsirModel} />
+                  <TafsirPanel model={sheetDisplayModel} />
                 )}
+                {/* The unified per-ayah base follows the inline panel too, so a
+                    page reader gets the same context + occasion of revelation. */}
+                <div className="mt-3">
+                  <TafsirFoundation
+                    ayahRef={a.ref}
+                    dataset={quran.dataset}
+                    showAsbab={
+                      sheetDisplayModel.status === "unavailable" ||
+                      !sheetDisplayModel.entry.revelation
+                    }
+                  />
+                </div>
               </section>
             )}
           </div>
