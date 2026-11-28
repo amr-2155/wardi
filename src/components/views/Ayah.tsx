@@ -5,12 +5,14 @@ import { useState } from "react";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { AyahActionBar, AyahMetaFooter, RelatedItem, SurahBadge, VerseText } from "@/components/quran";
+import { TafsirFoundation } from "@/components/TafsirFoundation";
 import { TafsirPanel } from "@/components/TafsirPanel";
 import { TafsirSections } from "@/components/TafsirSections";
 import { ScreenHeader } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { useLocale, type Locale } from "@/lib/locale";
-import { buildTafsirModel, isTafsirAIEnabled } from "@/lib/tafsir";
+import { buildTafsirModel, isTafsirAIEnabled, type TafsirResult } from "@/lib/tafsir";
+import { getDraftTafsir, isTafsirDraftPreviewEnabled } from "@/lib/tafsir/drafts";
 import { usePublishedTafsirSource } from "@/hooks/usePublishedTafsirSource";
 import { useTafsirGeneration } from "@/hooks/useTafsirGeneration";
 import type { QuranData } from "@/hooks/useQuran";
@@ -54,6 +56,17 @@ export function AyahView({
      draft that started before the async source finished loading. */
   const shownModel =
     tafsirModel.status === "unavailable" ? (generation.model ?? tafsirModel) : tafsirModel;
+  /* Draft review preview (?tafsirDrafts=1): shows an unreviewed draft through
+     the real article renderer so wording can be judged exactly as readers
+     would see it. A shipped reviewed entry always wins; drafts never merge
+     into the reviewed pack. */
+  const draftEntry = isTafsirDraftPreviewEnabled() ? getDraftTafsir(ayahId) : null;
+  const shownIsReviewed =
+    shownModel.status !== "unavailable" && shownModel.entry.reviewStatus === "reviewed";
+  const displayModel: TafsirResult =
+    draftEntry && shownModel.status !== "unavailable" && !shownIsReviewed
+      ? { status: "curated", context: shownModel.context, entry: draftEntry, provider: "curated" }
+      : shownModel;
   /* State WHY honestly rather than silently hiding the tafsir section. */
   const tafsirNotice =
     tafsirModel.status !== "unavailable"
@@ -279,13 +292,13 @@ export function AyahView({
       </button>
 
       {/* TAFSIR */}
-      {shownModel.status !== "unavailable" ? (
+      {displayModel.status !== "unavailable" ? (
         <section className="mt-6">
           <div className="mb-3 flex items-center gap-1.5">
             <Sparkles size={14} className="text-gold-strong" />
             <h3 className="text-sm font-black">{t("ayah.tafsirTitle")}</h3>
           </div>
-          <TafsirPanel model={shownModel} />
+          <TafsirPanel model={displayModel} />
         </section>
       ) : tafsir ? (
         <section className="mt-6">
@@ -329,6 +342,19 @@ export function AyahView({
           </div>
         </section>
       )}
+
+      {/* Unified per-ayah foundation: mushaf context (neighboring verses from
+          the verified dataset) + occasion of revelation with an honest
+          "none established" line. Never guesses. */}
+      <section className="mt-6">
+        <TafsirFoundation
+          ayahRef={ayahId}
+          dataset={quran.dataset}
+          showAsbab={
+            displayModel.status === "unavailable" || !displayModel.entry.revelation
+          }
+        />
+      </section>
 
       {/* RELATED */}
       {related && related.relatedAyahs.length > 0 && (

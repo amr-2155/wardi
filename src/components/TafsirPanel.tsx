@@ -48,6 +48,9 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
   const { context, entry } = available;
   const generated = available.status === "generated";
   const published = entry.reviewStatus === "published";
+  /* A draft is unreviewed wording under evaluation; it must carry the same
+     caution styling as generated text and can never wear the reviewed badge. */
+  const draft = entry.reviewStatus === "draft";
 
   const copyText = () => {
     const lines: string[] = [`${context.chapterName} — ${context.ayahNumber}`, `«${context.verseText}»`];
@@ -63,6 +66,7 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       );
     }
     if (generated) lines.push(t("tafsir.generatedDisclaimer"));
+    if (draft) lines.push(t("tafsir.draftDisclaimer"));
     if (entry.overview) lines.push(`${t("tafsir.section.overview")}: ${entry.overview}`);
     if (entry.vocabulary?.length) {
       lines.push(t("tafsir.section.vocabulary"));
@@ -171,12 +175,12 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       {/* REVIEW STATUS */}
       <div
         className={`flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-[11px] leading-5 ${
-          generated || published
+          generated || published || draft
             ? "border-gold/40 bg-gold-soft/40 text-ink"
             : "border-success/30 bg-surface-2 text-muted"
         }`}
       >
-        {generated ? (
+        {generated || draft ? (
           <Info size={13} className="mt-0.5 shrink-0 text-gold-strong" />
         ) : published ? (
           <BookOpen size={13} className="mt-0.5 shrink-0 text-gold-strong" />
@@ -186,18 +190,22 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
         <span>
           {generated
             ? t("tafsir.badge.generated")
-            : published
-              ? t("tafsir.badge.published")
-              : t("tafsir.badge.reviewed")}
+            : draft
+              ? t("tafsir.badge.draft")
+              : published
+                ? t("tafsir.badge.published")
+                : t("tafsir.badge.reviewed")}
           <span className="mt-1 block text-[10px] opacity-80">
             {generated
               ? t("tafsir.badge.generatedHint")
-              : published
-                ? t("tafsir.badge.publishedHint", {
-                    edition: entry.sourceEdition,
-                    date: entry.sourceDate ?? "",
-                  })
-                : `${entry.sourceEdition} · ${t("tafsir.badge.reviewedOn", { date: entry.reviewedDate ?? "" })}`}
+              : draft
+                ? `${entry.sourceEdition}`
+                : published
+                  ? t("tafsir.badge.publishedHint", {
+                      edition: entry.sourceEdition,
+                      date: entry.sourceDate ?? "",
+                    })
+                  : `${entry.sourceEdition} · ${t("tafsir.badge.reviewedOn", { date: entry.reviewedDate ?? "" })}`}
           </span>
         </span>
       </div>
@@ -369,7 +377,7 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
       </div>
 
       <div className="flex items-start gap-1.5 rounded-2xl border border-line bg-surface-2 px-3 py-2.5 text-[10px] leading-5 text-muted">
-        {generated ? (
+        {generated || draft ? (
           <Info size={13} className="mt-0.5 shrink-0 text-gold-strong" />
         ) : published ? (
           <BookOpen size={13} className="mt-0.5 shrink-0 text-gold-strong" />
@@ -379,12 +387,14 @@ export function TafsirPanel({ model }: { model: TafsirResult }) {
         <p>
           {generated
             ? t("tafsir.generatedDisclaimer")
-            : published
-              ? t("tafsir.publishedDisclaimer", {
-                  source: entry.sourceEdition,
-                  date: entry.sourceDate ?? "",
-                })
-              : t("tafsir.richDisclaimer", { source: entry.sourceEdition })}
+            : draft
+              ? t("tafsir.draftDisclaimer")
+              : published
+                ? t("tafsir.publishedDisclaimer", {
+                    source: entry.sourceEdition,
+                    date: entry.sourceDate ?? "",
+                  })
+                : t("tafsir.richDisclaimer", { source: entry.sourceEdition })}
         </p>
       </div>
     </div>
