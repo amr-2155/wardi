@@ -202,7 +202,7 @@ export function SegmentControl<T extends string>({
           onClick={() => onChange(option.value)}
           className={`h-9 flex-1 rounded-xl text-xs font-bold transition ${
             value === option.value
-              ? "bg-surface text-primary shadow"
+              ? "bg-surface text-primary-ink shadow"
               : "text-muted hover:text-ink"
           }`}
         >

@@ -1,11 +1,12 @@
 "use client";
 
-import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, ScrollText, Search, Sparkles, Sunrise, Target } from "lucide-react";
+import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, ScrollText, Search, Shuffle, Sparkles, Sunrise, Target } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Card, SegmentControl, Sheet } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { VerseText } from "@/components/quran";
-import { TOPICS } from "@/data/quran";
+import { TAFSIR, TOPICS } from "@/data/quran";
+import { tadabburPool } from "@/lib/quran/tafsir";
 import { useLocale } from "@/lib/locale";
 import type { FullViewId } from "@/lib/types";
 import type { QuranData } from "@/hooks/useQuran";
@@ -135,6 +136,17 @@ export function LibraryView({
     return rows;
   }, [quran.dataset, quran.meta, quran]);
 
+  /* Reflection stops: the curated tadabbur pool, validated against the
+     loaded dataset. A tap opens one of them at random. */
+  const tadabburRefs = useMemo(
+    () => (quran.dataset ? tadabburPool(TAFSIR, quran.dataset) : []),
+    [quran.dataset],
+  );
+  const openTadabburStop = () => {
+    if (tadabburRefs.length === 0) return;
+    onOpenAyah(tadabburRefs[Math.floor(Math.random() * tadabburRefs.length)]);
+  };
+
   const showResults = deferredQuery.trim().length > 0 || (selectedTopic && topicVerses.length > 0);
   const listRefs = refQuery
     ? [refQuery]
@@ -242,68 +254,18 @@ export function LibraryView({
         </button>
       )}
 
-      {/* QURANIC DUAS — a list of supplications that are themselves ayahs.
-          The refs are curated; the text renders from the verified dataset. */}
-      <button
-        type="button"
-        onClick={() => setDuaOpen(true)}
-        className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
-          <HeartHandshake size={19} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-black text-ink">{t("library.duasTitle")}</span>
-          <span className="mt-0.5 block text-[10px] leading-4 text-muted">{t("library.duasSub")}</span>
-        </span>
-        <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
-      </button>
-
-      {/* TILAWA PROSTRATION — the fourteen sajda ayahs with their refs. */}
-      <button
-        type="button"
-        onClick={() => setSajdaOpen(true)}
-        className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
-          <ArrowDownToLine size={19} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-black text-ink">{t("library.sajdaTitle")}</span>
-          <span className="mt-0.5 block text-[10px] leading-4 text-muted">{t("library.sajdaSub")}</span>
-        </span>
-        <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
-      </button>
-
-      {/* OCCASIONS RADAR — full-width entry to the Hijri occasions view. */}
-      <button
-        type="button"
-        onClick={() => onOpen("occasions")}
-        className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
-          <MoonStar size={19} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-black text-ink">{t("home.featureOccTitle")}</span>
-          <span className="mt-0.5 block text-[10px] leading-4 text-muted">
-            {t("home.featureOccSub")} · {hijriLabel}
-          </span>
-        </span>
-        <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
-      </button>
-
-      {/* DAILY AYAH */}
+      {/* DAILY AYAH + TADABBUR STOP — the personal curated picks sit right
+          under the resume card; the ready-made lists come after. */}
       {dailyVisible && dailyAyah && (
         <button
           type="button"
           onClick={onOpenDaily}
-          className="mt-4 flex w-full items-center gap-3 rounded-2xl border-2 border-gold/30 bg-gold-soft p-4 text-right shadow-md transition hover:border-gold/50 active:scale-[0.99]"
+          className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/40 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99] animate-fade-up"
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep ring-2 ring-gold/30">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
             <Sparkles size={19} />
           </span>
-          <span className="flex-1">
+          <span className="min-w-0 flex-1">
             <span className="block text-[11px] font-bold text-gold-strong">{t("library.dailyVerse")}</span>
             <span className="mt-0.5 block text-sm font-black text-ink">
               {dailyAyah.chapter.name} · {t("library.verse")} {dailyAyah.verse.number}
@@ -314,6 +276,40 @@ export function LibraryView({
           </span>
         </button>
       )}
+
+      <WideCard
+        icon={<Shuffle size={19} />}
+        title={t("library.tadabburStopTitle")}
+        sub={t("library.tadabburStopSub")}
+        onPress={openTadabburStop}
+        delay={60}
+      />
+
+      {/* READY LISTS — curated reference sets; every text renders from the
+          verified dataset, nothing is stored twice. */}
+      <h2 className="mb-2 mt-6 px-1 text-[11px] font-black text-muted">{t("library.listsLabel")}</h2>
+      <div className="flex flex-col gap-3">
+        <WideCard
+          icon={<HeartHandshake size={19} />}
+          title={t("library.duasTitle")}
+          sub={t("library.duasSub")}
+          onPress={() => setDuaOpen(true)}
+        />
+        <WideCard
+          icon={<ArrowDownToLine size={19} />}
+          title={t("library.sajdaTitle")}
+          sub={t("library.sajdaSub")}
+          onPress={() => setSajdaOpen(true)}
+          delay={50}
+        />
+        <WideCard
+          icon={<MoonStar size={19} />}
+          title={t("home.featureOccTitle")}
+          sub={`${t("home.featureOccSub")} · ${hijriLabel}`}
+          onPress={() => onOpen("occasions")}
+          delay={100}
+        />
+      </div>
 
       {/* SECTIONS */}
       <div className="mt-5" ref={sectionsRef}>
@@ -650,6 +646,38 @@ const FEATURE_TONES = {
  * `onPress` is optional so a card can never render as a button that does
  * nothing; a tile without one is a plain non-interactive surface.
  */
+function WideCard({
+  icon,
+  title,
+  sub,
+  onPress,
+  delay = 0,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  sub?: string;
+  onPress: () => void;
+  delay?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      style={{ animationDelay: `${delay}ms` }}
+      className="flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99] animate-fade-up"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black text-ink">{title}</span>
+        {sub && <span className="mt-0.5 block text-[10px] leading-4 text-muted">{sub}</span>}
+      </span>
+      <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
+    </button>
+  );
+}
+
 function FeatureCard({
   icon,
   tone,
