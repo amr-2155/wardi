@@ -223,6 +223,7 @@ const SEED = {
   "ward:v2:mushaf:quran-session": JSON.stringify({ page: 10 }),
   "ward:v2:mushaf:quran-page": "10",
   "ward:v2:mushaf:skin": "reveal",
+  "ward:v2:mushaf:recent-searches": JSON.stringify(["الناس"]),
   "ward:v2:locale": "ar",
   "ward:v2:accent:v1": JSON.stringify("emerald"),
   "ward:v2:onboarding:v1": JSON.stringify({ seen: true }),

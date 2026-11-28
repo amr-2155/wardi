@@ -175,9 +175,10 @@ const FROZEN_HASHES = {
      ward:v2:mushaf:skin (reader design skin, a plain string preference now
      covered by backup/export) and REGENERABLE_KEYS gained
      wardi:audio:cache-index-v1 (offline audio cache index; rebuilds from the
-     network, excluded from backups). Covered by the A1/A2/A3 checks in
-     test-w1. */
-  "src/lib/userData.ts": "E564FEED11C02F5C",
+     network, excluded from backups). Round 4 same day: the reader category
+     gained ward:v2:mushaf:recent-searches (json list, included in backups).
+     Covered by the A1/A2/A3 checks in test-w1. */
+  "src/lib/userData.ts": "651E4E1039D91B36",
   /* Re-pinned 2026-11-17: import validation follows the registry's declared
      format instead of demanding JSON from every key. Corrupt JSON is still
      rejected; only the intentionally-bare string preferences are exempt from
@@ -228,9 +229,10 @@ const FROZEN_HASHES = {
     /* Re-pinned 2026-11-28 (quran-page-redesign branch): offline audio cache
      resolution at the player load sites, surah-name search hits, a bounded
      12-page glyph cache, and the skin preference read moved to a lazy
-     initializer (lint rule on setState-in-effect). No Arabic literals added;
-     immersive behaviour covered by test-mushaf.mjs. */
-  "src/components/views/MushafReader.tsx": "6DC5D802E4D9F56B",
+     initializer (lint rule on setState-in-effect). Round 4 same day: recent
+     search chips + diacritic-insensitive match highlighting in the search
+     sheet. Immersive behaviour covered by test-mushaf.mjs. */
+  "src/components/views/MushafReader.tsx": "906A123163173243",
    /* Re-pinned 2026-11-18 (missing-change audit): a manual swipe or page flip
       no longer silently resumes auto-scroll — only the explicit Resume control
       does; a wheel/trackpad interaction pauses the same way; and completion for

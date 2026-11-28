@@ -47,6 +47,7 @@ import {
 import { getGlobalId, resolveAyah } from "@/lib/quran/validate";
 import { getGlobalIdOfRef } from "@/lib/quran/search";
 import { makeNormalizedIndex } from "@/lib/quran/normalize";
+import { highlightSegments } from "@/lib/quran/highlight";
 import { refFromGlobalId } from "@/lib/quran/progress";
 import {
   loadLastPage,
@@ -538,6 +539,9 @@ function DockButton({
   );
 }
 
+const RECENT_SEARCHES_KEY = "ward:v2:mushaf:recent-searches";
+
+
 export function MushafReaderView({
   data,
   quran,
@@ -589,6 +593,42 @@ export function MushafReaderView({
   const [ayahsOpen, setAyahsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  /* Recent mushaf searches (max 6, newest first). Read once at mount like the
+     other reader preferences; written whenever a result is opened. */
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY);
+      const arr: unknown = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr)
+        ? arr.filter((q): q is string => typeof q === "string").slice(0, 6)
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
+  /* Record a query the user actually opened a result from (max 6, deduped). */
+  const rememberSearch = (q: string) => {
+    const query = q.trim();
+    if (query.length < 2) return;
+    setRecentSearches((prev) => {
+      const nextArr = [query, ...prev.filter((x) => x !== query)].slice(0, 6);
+      try {
+        window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(nextArr));
+      } catch {
+        /* storage best-effort */
+      }
+      return nextArr;
+    });
+  };
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    try {
+      window.localStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch {
+      /* storage best-effort */
+    }
+  };
   const [reciterOpen, setReciterOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   /* Resolved once on mount — the root element also carries data-mushaf-theme.
@@ -3977,6 +4017,32 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
             />
 
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
+              {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
+                <div className="mb-2">
+                  <div className="flex items-center justify-between px-1 pb-1.5">
+                    <p className="text-[11px] font-black text-muted">{t("mushaf.recentSearches")}</p>
+                    <button
+                      type="button"
+                      onClick={clearRecentSearches}
+                      className="text-[11px] font-bold text-danger/80 transition hover:text-danger"
+                    >
+                      {t("mushaf.clearRecentSearches")}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSearches.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setSearchQuery(q)}
+                        className="rounded-full border border-line bg-surface-soft px-3 py-1.5 text-[12px] font-bold text-ink transition active:scale-95"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {searchQuery.trim().length >= 2 && searchResults.length === 0 && surahSearchResults.length === 0 ? (
                 <p className="py-10 text-center text-sm font-bold text-muted">
                   {t("mushaf.searchEmpty")}
@@ -3993,6 +4059,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                           key={`surah-${s.id}`}
                           type="button"
                           onClick={() => {
+                            rememberSearch(searchQuery);
                             setSearchOpen(false);
                             if (s.page !== null) goTo(s.page);
                           }}
@@ -4020,13 +4087,22 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                       key={r.ref}
                       type="button"
                       onClick={() => {
+                        rememberSearch(searchQuery);
                         setSearchOpen(false);
                         if (r.page !== null) goTo(r.page);
                       }}
                       className="rounded-2xl px-3 py-2.5 text-right transition hover:bg-surface-soft active:scale-[0.99]"
                     >
                       <span className="block truncate font-quran text-base leading-snug">
-                        {r.text}
+                        {highlightSegments(r.text, searchQuery).map((seg, i) =>
+                          seg.hit ? (
+                            <mark key={i} className="rounded bg-gold/40 text-inherit">
+                              {seg.t}
+                            </mark>
+                          ) : (
+                            <span key={i}>{seg.t}</span>
+                          )
+                        )}
                       </span>
                       <span className="mt-1 flex items-center justify-between gap-2">
                         <span className="truncate text-[11px] font-bold text-muted">
