@@ -53,7 +53,7 @@ const AUDIO_CDN_BASE = "https://audio.qurancdn.com";
  * Fixed list of 114 surahs with Arabic names, English transliteration, and verse counts.
  * This data is static and sourced from the Quran.com API (chapters endpoint).
  */
-const SURAH_DATA: AudioSurah[] = [
+export const SURAH_DATA: AudioSurah[] = [
   { number: 1, name: "الفاتحة", englishName: "Al-Fatihah", ayahCount: 7 },
   { number: 2, name: "البقرة", englishName: "Al-Baqarah", ayahCount: 286 },
   { number: 3, name: "آل عمران", englishName: "Ali 'Imran", ayahCount: 200 },

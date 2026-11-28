@@ -5,7 +5,13 @@ import { useRef, useState } from "react";
 import { PrayerSettingsPanel } from "@/components/PrayerSettingsPanel";
 import { RemindersSettingsPanel } from "@/components/RemindersSettingsPanel";
 import { Card, NumberField, SectionLabel, SegmentControl, Toggle } from "@/components/ui";
-import { audioCacheStats, clearAudioCache } from "@/lib/audio/cache";
+import {
+  audioCacheStats,
+  clearAudioCache,
+  surahCacheInfo,
+  removeSurahFromCache,
+} from "@/lib/audio/cache";
+import { SURAH_DATA } from "@/lib/audio/quran-com";
 import { useLocale } from "@/lib/locale";
 import { useAccent, type AccentId } from "@/lib/accent";
 import type { ThemeMode } from "@/lib/types";
@@ -44,6 +50,18 @@ const ACCENT_SWATCHES: { id: AccentId; dot: string; labelKey: string }[] = [
   { id: "maroon", dot: "#a43d5c", labelKey: "settings.accentMaroon" },
 ];
 
+/** Surahs whose every verse is in the audio cache (whole-surah downloads). */
+function listDownloadedSurahs(): { number: number; name: string; sizeMb: string }[] {
+  return SURAH_DATA.filter((s) => {
+    const info = surahCacheInfo(s.number);
+    return s.ayahCount > 0 && info.count >= s.ayahCount;
+  }).map((s) => ({
+    number: s.number,
+    name: s.name,
+    sizeMb: (surahCacheInfo(s.number).bytes / 1048576).toFixed(1),
+  }));
+}
+
 export function SettingsView({ data }: { data: WardData }) {
   const { t, locale, setLocale } = useLocale();
   const [accent, setAccent] = useAccent();
@@ -54,14 +72,24 @@ export function SettingsView({ data }: { data: WardData }) {
   const [pending, setPending] = useState<ImportPlan | null>(null);
   const [audioStats, setAudioStats] = useState(() => audioCacheStats());
   const [clearedAudio, setClearedAudio] = useState(false);
+  const [downloads, setDownloads] = useState(listDownloadedSurahs);
   const auto = data.settings.autoIncrease;
+
+  const refreshAudioState = () => {
+    setAudioStats(audioCacheStats());
+    setDownloads(listDownloadedSurahs());
+  };
 
   const handleClearAudioCache = () => {
     void clearAudioCache().then(() => {
-      setAudioStats(audioCacheStats());
+      refreshAudioState();
       setClearedAudio(true);
       window.setTimeout(() => setClearedAudio(false), 2000);
     });
+  };
+
+  const handleRemoveDownload = (surah: number) => {
+    void removeSurahFromCache(surah).then(refreshAudioState);
   };
 
   const handleExport = () => {
@@ -216,6 +244,33 @@ export function SettingsView({ data }: { data: WardData }) {
                   size: (audioStats.bytes / 1048576).toFixed(1),
                 })}
           </p>
+          {downloads.length > 0 && (
+            <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+              <p className="text-[11px] font-black text-muted">
+                {t("settings.audioCache.downloads")}
+              </p>
+              {downloads.map((d) => (
+                <div
+                  key={d.number}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="text-xs font-bold">{d.name}</span>
+                  <span className="flex items-center gap-2 text-[11px] font-black text-gold-strong">
+                    {t("audio.downloadedSize", { size: d.sizeMb })}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDownload(d.number)}
+                      aria-label={`${t("audio.deleteDownload")} ${d.name}`}
+                      title={t("audio.deleteDownload")}
+                      className="text-danger transition active:scale-95"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {audioStats.count > 0 && (
             <button
               type="button"
