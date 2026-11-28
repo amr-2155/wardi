@@ -586,6 +586,21 @@ export function MushafReaderView({
   /* Resolved once on mount — the root element also carries data-mushaf-theme.
      A saved theme wins, otherwise we default to the warm yellow parchment. */
   const [mushafTheme, setMushafTheme] = useState<MushafThemeId>(() => loadMushafTheme());
+  /* Design skin (round 4 of the Quran page redesign). The same reader can be
+     dressed in genuinely different directions; the value is read from ?skin=
+     or a saved key on mount so a design round can be reviewed in the real app
+     without shipping a settings screen for it. */
+  const [skin, setSkin] = useState<string>("");
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("skin");
+      const saved = window.localStorage.getItem("ward:v2:mushaf:skin");
+      const v = (q || saved || "").trim();
+      if (v) setSkin(v);
+    } catch {
+      /* storage blocked: the default direction stays */
+    }
+  }, []);
   /* Reading fit: how the page is scaled to fill the screen (persisted). */
   const [fitMode, setFitMode] = useState<MushafFitId>(() => loadMushafFit());
   /* Measured transparent-margin crop for the current page (null = uncropped). */
@@ -2316,6 +2331,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
       className="mushaf-reader fixed inset-x-0 top-0 flex h-[var(--mushaf-h)] w-full flex-col overflow-hidden overscroll-contain text-ink"
       dir={locale === "ar" ? "rtl" : "ltr"}
       data-mushaf-theme={mushafTheme}
+      data-skin={skin || undefined}
       /* The shell owns the whole viewport: the page area fills all of it and
          the tools float above it, so revealing or hiding them can never
          re-flow the page or move the reading spot. `100dvh` (with a `100vh`

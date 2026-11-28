@@ -692,3 +692,240 @@ input[type=number]{appearance:textfield}
   background:color-mix(in oklab, var(--mgold) 20%, transparent) !important;
   color:var(--mgold-strong) !important;
 }
+/* ── Quran page redesign, round 4: four directions ─────────────────────
+   The reader root carries data-skin. Each block is a whole direction, not a
+   tweak: a different silhouette for the header, the page surface and the
+   controls. Markup is untouched, the page fit is untouched, and every
+   control keeps working — only the dress changes. */
+
+/* Every direction drops the printed frame unless it asks for it back. */
+.mushaf-reader[data-skin] .mushaf-stage:before{display:none}
+
+/* ── 1) top — every control in one bar at the head of the screen ────── */
+.mushaf-reader[data-skin=top] .mushaf-bar-top{
+  padding-top:calc(max(0.5rem, var(--mushaf-safe-top)) + 3.4rem) !important;
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=top] .mushaf-bar-bottom{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  padding:0 !important;
+}
+.mushaf-reader[data-skin=top] .mushaf-bar-bottom > div:not(.mushaf-dock){display:none !important}
+.mushaf-reader[data-skin=top] .mushaf-dock{
+  position:absolute;
+  left:1rem;
+  right:1rem;
+  bottom:calc(100vh - 3.5rem);
+  margin:0 !important;
+  padding:.28rem .5rem !important;
+  gap:.4rem !important;
+  border-radius:999px !important;
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent) !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 26%, transparent) !important;
+  box-shadow:0 14px 30px -22px color-mix(in oklab, var(--mink) 70%, transparent) !important;
+  -webkit-backdrop-filter:blur(16px) !important;
+  backdrop-filter:blur(16px) !important;
+}
+.mushaf-reader[data-skin=top] .mushaf-position-pill{
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=top] .mushaf-position-pill::after{display:none}
+.mushaf-reader[data-skin=top] .mushaf-position-pill > span:first-child{font-size:16px;font-weight:700}
+.mushaf-reader[data-skin=top] .mushaf-position-pill > span:last-child{font-size:10px;letter-spacing:.09em}
+.mushaf-reader[data-skin=top] .mushaf-bar-btn{
+  border:0 !important;
+  background:color-mix(in oklab, var(--mink) 8%, transparent) !important;
+}
+
+/* ── 2) handle — the page, and one small grabber at the foot ─────────── */
+.mushaf-reader[data-skin=handle] .mushaf-bar-top,
+.mushaf-reader[data-skin=handle] .mushaf-bar-bottom{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=handle] .mushaf-bar-bottom{padding:0 !important}
+.mushaf-reader[data-skin=handle] .mushaf-bar-bottom > div:not(.mushaf-dock){display:none !important}
+.mushaf-reader[data-skin=handle] .mushaf-position-pill{
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=handle] .mushaf-position-pill::after{display:none}
+.mushaf-reader[data-skin=handle] .mushaf-bar-btn{
+  border:0 !important;
+  background:color-mix(in oklab, var(--mink) 8%, transparent) !important;
+}
+.mushaf-reader[data-skin=handle] .mushaf-dock{
+  width:fit-content !important;
+  margin:0 auto .75rem !important;
+  padding:.2rem .25rem !important;
+  gap:.1rem !important;
+  border-radius:999px !important;
+  background:color-mix(in oklab, var(--mpaper-top) 90%, transparent) !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 22%, transparent) !important;
+  box-shadow:0 10px 26px -18px color-mix(in oklab, var(--mink) 60%, transparent) !important;
+  -webkit-backdrop-filter:blur(14px) !important;
+  backdrop-filter:blur(14px) !important;
+}
+.mushaf-reader[data-skin=handle] .mushaf-dock-btn{
+  width:2.25rem !important;
+  height:2.25rem !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.mushaf-reader[data-skin=handle] .mushaf-dock-btn:nth-child(3),
+.mushaf-reader[data-skin=handle] .mushaf-dock-btn:nth-child(4){display:none !important}
+
+/* ── 3) float — the page as a sheet on a tinted desk ─────────────────── */
+.mushaf-reader[data-skin=float] .mushaf-stage{
+  background:radial-gradient(120% 90% at 50% 0%, #1d4034 0%, #123027 55%, #0c231c 100%) !important;
+}
+.mushaf-reader[data-skin=float][data-mushaf-theme=midnight] .mushaf-stage{
+  background:radial-gradient(120% 90% at 50% 0%, #101010 0%, #0a0a0a 60%, #000 100%) !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-stage:after{background:none !important}
+/* The page art is ink on transparent, so the sheet itself has to be painted
+   behind it — otherwise a tinted desk would show through the letters. */
+.mushaf-reader[data-skin=float] .mushaf-stage > .animate-page-in-rev{
+  background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot));
+  border-radius:14px;
+  box-shadow:
+    0 0 0 11px var(--mpaper-top),
+    0 34px 70px -28px rgba(0,0,0,.7);
+  zoom:.92;
+}
+.mushaf-reader[data-skin=float][data-mushaf-theme=midnight] .mushaf-stage > .animate-page-in-rev{
+  background:#111;
+  box-shadow:
+    0 0 0 11px #111,
+    0 30px 60px -22px #000,
+    0 0 0 12px #ffffff12;
+}
+.mushaf-reader[data-skin=float] .mushaf-bar-top{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-position-pill{
+  padding:.35rem 1rem !important;
+  border-radius:1rem !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 26%, transparent) !important;
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent) !important;
+  box-shadow:0 10px 24px -18px color-mix(in oklab, var(--mink) 70%, transparent) !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-position-pill::after{display:none}
+.mushaf-reader[data-skin=float] .mushaf-bar-btn{
+  border-radius:.85rem !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 22%, transparent) !important;
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent) !important;
+  box-shadow:0 8px 20px -16px color-mix(in oklab, var(--mink) 70%, transparent) !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-bar-bottom{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  padding:0 !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-bar-bottom > div:not(.mushaf-dock){display:none !important}
+.mushaf-reader[data-skin=float] .mushaf-dock{
+  margin:0 .8rem .85rem !important;
+  padding:.35rem .5rem !important;
+  border-radius:999px !important;
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent) !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 28%, transparent) !important;
+  box-shadow:0 18px 40px -22px color-mix(in oklab, var(--mink) 80%, transparent) !important;
+  -webkit-backdrop-filter:blur(18px) saturate(1.1) !important;
+  backdrop-filter:blur(18px) saturate(1.1) !important;
+}
+.mushaf-reader[data-skin=float] .mushaf-page-number{
+  background:color-mix(in oklab, var(--mpaper-top) 92%, transparent) !important;
+  border-color:color-mix(in oklab, var(--mgold) 30%, transparent) !important;
+}
+
+/* ── 4) editorial — a big title, a hairline, one gold button ─────────── */
+.mushaf-reader[data-skin=editorial] .mushaf-bar-top{
+  background:transparent !important;
+  border:0 !important;
+  border-bottom:1px solid color-mix(in oklab, var(--mgold) 30%, transparent) !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-position-pill{
+  padding:.15rem 0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-position-pill::after{display:none}
+.mushaf-reader[data-skin=editorial] .mushaf-position-pill > span:first-child{
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:-.015em;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-position-pill > span:last-child{
+  font-size:9.5px;
+  font-weight:700;
+  letter-spacing:.16em;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-bar-btn{
+  border:0 !important;
+  background:color-mix(in oklab, var(--mink) 8%, transparent) !important;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-bar-bottom{
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  padding:0 !important;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-bar-bottom > div:not(.mushaf-dock){display:none !important}
+.mushaf-reader[data-skin=editorial] .mushaf-dock{
+  width:3.4rem !important;
+  height:3.4rem !important;
+  margin:0 auto .85rem !important;
+  padding:0 !important;
+  gap:0 !important;
+  border-radius:999px !important;
+  border:0 !important;
+  background:linear-gradient(180deg,#E2C88A,#BE9A4E) !important;
+  box-shadow:0 16px 30px -14px rgba(120,90,30,.55) !important;
+}
+.mushaf-reader[data-skin=editorial] .mushaf-dock-btn{display:none !important}
+.mushaf-reader[data-skin=editorial] .mushaf-dock-btn[data-tools-fab]{
+  display:flex !important;
+  width:3.4rem !important;
+  height:3.4rem !important;
+  border:0 !important;
+  background:transparent !important;
+  color:#2A2110 !important;
+  box-shadow:none !important;
+}
