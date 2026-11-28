@@ -111,6 +111,7 @@ export const USER_DATA_KEYS: readonly UserDataKey[] = [
 export const REGENERABLE_KEYS: readonly string[] = [
   "ward:v2:mushaf:glyph-box-v3", // glyph metrics for the mushaf reader
   "wardi:audio:reciters-v1", // reciter list fetched from the CDN
+  "wardi:audio:cache-index-v1", // offline audio cache index; entries re-download on play
   "quran-v1", // parsed dataset cache
 ] as const;
 

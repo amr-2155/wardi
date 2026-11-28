@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, ScrollText, Search, Shuffle, Sparkles, Sunrise, Target } from "lucide-react";
+import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, PenLine, ScrollText, Search, Shuffle, Sparkles, Sunrise, Target } from "lucide-react";
 import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { Card, SegmentControl, Sheet } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
@@ -214,6 +214,14 @@ export function LibraryView({
               setSection("index");
               sectionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
+          />
+          <FeatureCard
+            icon={<PenLine size={19} />}
+            tone="rose"
+            title={t("home.featureReadingTitle")}
+            subtitle={t("home.featureReadingSub")}
+            badge={data.isDone ? t("home.done") : undefined}
+            onPress={() => onOpen("reading")}
           />
         </div>
       </section>
