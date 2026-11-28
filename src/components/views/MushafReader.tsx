@@ -2356,13 +2356,13 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
               gives the corner back to the back button when the tools open. */}
           {skin === "reveal" && (
             <div
-              className={`pointer-events-none absolute inset-y-0 start-1 my-auto flex h-9 w-9 items-center justify-center transition-opacity duration-200 ${
+              className={`pointer-events-none absolute inset-y-0 start-1.5 my-auto flex h-8 w-8 items-center justify-center transition-opacity duration-200 ${
                 chrome ? "opacity-0" : "opacity-100"
               }`}
               aria-label={t("mushaf.wardProgress")}
               role="img"
             >
-              <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90" aria-hidden>
+              <svg viewBox="0 0 36 36" className="h-8 w-8 -rotate-90" aria-hidden>
                 <circle
                   cx="18"
                   cy="18"
@@ -2383,7 +2383,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 />
               </svg>
               <span
-                className="absolute text-[9.5px] font-black tabular-nums"
+                className="absolute text-[8.5px] font-black tabular-nums"
                 style={{ color: "var(--mink)" }}
               >
                 {toArabicIndic(Math.round(donePct))}

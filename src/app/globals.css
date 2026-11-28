@@ -952,8 +952,14 @@ input[type=number]{appearance:textfield}
   backdrop-filter:none !important;
 }
 .mushaf-reader[data-skin=reveal] .mushaf-position-pill::after{display:none}
-.mushaf-reader[data-skin=reveal] .mushaf-position-pill > span:first-child{font-size:17px;font-weight:700}
-.mushaf-reader[data-skin=reveal] .mushaf-position-pill > span:last-child{font-size:10px;letter-spacing:.14em}
+.mushaf-reader[data-skin=reveal] .mushaf-position-pill > span:first-child{
+  font-size:18px;
+  font-weight:800;
+  line-height:1.65 !important;
+  padding-top:.15rem;
+  padding-bottom:.05rem;
+}
+.mushaf-reader[data-skin=reveal] .mushaf-position-pill > span:last-child{font-size:10.5px;font-weight:700;letter-spacing:.12em;color:color-mix(in oklab, var(--mink) 82%, transparent) !important}
 .mushaf-reader[data-skin=reveal] .mushaf-bar-btn{
   border:0 !important;
   background:color-mix(in oklab, var(--mink) 9%, transparent) !important;
@@ -1032,4 +1038,5 @@ input[type=number]{appearance:textfield}
 .mushaf-reader[data-skin=reveal] .mushaf-page-number{
   background:color-mix(in oklab, var(--mpaper-top) 90%, transparent) !important;
   border-color:color-mix(in oklab, var(--mgold) 34%, transparent) !important;
+  translate:0 -2.1rem;
 }
