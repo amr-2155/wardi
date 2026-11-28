@@ -17,7 +17,7 @@ const INDEX_KEY = "wardi:audio:cache-index-v1";
 /** ~120 short verses ≈ 15-25 MB worst case. */
 const MAX_ENTRIES = 120;
 
-type CacheIndexEntry = { ts: number; size: number };
+type CacheIndexEntry = { ts: number; size: number; pinned?: boolean };
 type CacheIndex = Record<string, CacheIndexEntry>;
 
 /* A handful of live object URLs: enough for the current track plus the ones
@@ -61,7 +61,8 @@ function trackObjectUrl(objectUrl: string): void {
 }
 
 async function evict(cache: Cache, idx: CacheIndex): Promise<void> {
-  const urls = Object.keys(idx);
+  // Pinned (whole-surah download) entries never evict.
+  const urls = Object.keys(idx).filter((u) => !idx[u]?.pinned);
   if (urls.length <= MAX_ENTRIES) return;
   const byAge = urls.sort((a, b) => (idx[a]?.ts ?? 0) - (idx[b]?.ts ?? 0));
   for (const old of byAge.slice(0, urls.length - MAX_ENTRIES)) {
@@ -140,4 +141,97 @@ export function audioCacheStats(): { count: number; bytes: number } {
     bytes += idx[url]?.size ?? 0;
   }
   return { count, bytes };
+}
+
+/* ---- Whole-surah downloads (pinned entries) -------------------------- */
+
+/** Cache-index keys of one surah's verses: verse files are SSSAAA.mp3. */
+function surahKeyRe(surah: number): RegExp {
+  return new RegExp(`/${String(surah).padStart(3, "0")}\\d{3}\\.mp3$`);
+}
+
+/** How much of a surah is already stored (works fully offline). */
+export function surahCacheInfo(surah: number): { count: number; bytes: number } {
+  const idx = readIndex();
+  const re = surahKeyRe(surah);
+  let count = 0;
+  let bytes = 0;
+  for (const url of Object.keys(idx)) {
+    if (re.test(url)) {
+      count += 1;
+      bytes += idx[url]?.size ?? 0;
+    }
+  }
+  return { count, bytes };
+}
+
+/**
+ * Download every verse of a surah and pin it: pinned entries survive the LRU
+ * cap so a downloaded surah never evaporates to make room for casual plays.
+ * Verses already cached are re-pinned, not re-fetched. Returns bytes added.
+ */
+export async function downloadTracks(
+  urls: string[],
+  onProgress?: (done: number, total: number) => void
+): Promise<number> {
+  if (!supported()) return 0;
+  let added = 0;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i]!;
+      const idx = readIndex();
+      if (idx[url]) {
+        if (!idx[url].pinned) {
+          idx[url] = { ...idx[url]!, pinned: true };
+          writeIndex(idx);
+        }
+      } else {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const blob = await res.blob();
+            await cache.put(
+              url,
+              new Response(blob, {
+                headers: { "content-type": res.headers.get("content-type") ?? "audio/mpeg" },
+              })
+            );
+            idx[url] = { ts: Date.now(), size: blob.size, pinned: true };
+            writeIndex(idx);
+            added += blob.size;
+          }
+        } catch {
+          /* a failed verse just stays undownloaded */
+        }
+      }
+      onProgress?.(i + 1, urls.length);
+    }
+  } catch {
+    /* cache unavailable: nothing was pinned, playback stays online */
+  }
+  return added;
+}
+
+/** Remove one surah's downloaded verses from the cache and the index. */
+export async function removeSurahFromCache(surah: number): Promise<void> {
+  const re = surahKeyRe(surah);
+  const idx = readIndex();
+  const mine = Object.keys(idx).filter((u) => re.test(u));
+  if (supported()) {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      for (const url of mine) {
+        try {
+          await cache.delete(url);
+        } catch {
+          /* best effort */
+        }
+      }
+    } catch {
+      /* best effort */
+    }
+  }
+  for (const url of mine) delete idx[url];
+  writeIndex(idx);
 }

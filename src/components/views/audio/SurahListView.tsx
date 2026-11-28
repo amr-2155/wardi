@@ -1,9 +1,16 @@
 "use client";
 
-import { Play, Pause, Clock } from "lucide-react";
+import { Play, Pause, Clock, ArrowDownToLine, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useLocale } from "@/lib/locale";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { formatTime } from "@/hooks/useAudio";
+import { audioProvider } from "@/lib/audio";
+import {
+  downloadTracks,
+  removeSurahFromCache,
+  surahCacheInfo,
+} from "@/lib/audio/cache";
 import { AudioPlayer } from "./AudioPlayer";
 
 /**
@@ -42,6 +49,38 @@ export function SurahListView({
 
   // Determine if a surah row is currently playing
   const playingSurah = currentSurah?.number;
+
+  /* Whole-surah downloads: pct while running, plus a version counter that
+     re-reads the cache index after a download/delete finishes. */
+  const [dlPct, setDlPct] = useState<Record<number, number>>({});
+  const [cacheVersion, setCacheVersion] = useState(0);
+  void cacheVersion;
+
+  const handleDownload = async (surah: number) => {
+    if (!currentReciter || dlPct[surah] !== undefined) return;
+    setDlPct((prev) => ({ ...prev, [surah]: 0 }));
+    try {
+      const queue = await audioProvider.getSurahAudioQueue(currentReciter.id, surah);
+      if (!queue) return;
+      await downloadTracks(
+        queue.tracks.map((tr) => tr.url),
+        (done, total) =>
+          setDlPct((prev) => ({ ...prev, [surah]: Math.round((done / total) * 100) }))
+      );
+    } finally {
+      setDlPct((prev) => {
+        const next = { ...prev };
+        delete next[surah];
+        return next;
+      });
+      setCacheVersion((v) => v + 1);
+    }
+  };
+
+  const handleDeleteDownload = async (surah: number) => {
+    await removeSurahFromCache(surah);
+    setCacheVersion((v) => v + 1);
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -91,12 +130,15 @@ export function SurahListView({
           const isPlaying = s.number === playingSurah && player.isPlaying;
           const isThisSurah = s.number === currentSurah?.number;
 
+          const info = surahCacheInfo(s.number);
+          const downloaded = info.count >= s.ayahCount && s.ayahCount > 0;
+          const pct = dlPct[s.number];
+          const sizeMb = (info.bytes / 1048576).toFixed(1);
+
           return (
-            <button
+            <div
               key={s.number}
-              type="button"
-              onClick={() => handlePlay(s.number)}
-              className={`flex items-center gap-2 rounded-xl border border-transparent p-2.5 text-right transition-colors ${
+              className={`flex items-center gap-1 rounded-xl border border-transparent pe-1 transition-colors ${
                 isThisSurah
                   ? "border-gold/30 bg-primary-soft"
                   : "hover:bg-surface-2"
@@ -105,6 +147,11 @@ export function SurahListView({
                   ? "bg-primary-deep text-white hover:bg-primary-deep"
                   : ""
               }`}
+            >
+            <button
+              type="button"
+              onClick={() => handlePlay(s.number)}
+              className="flex flex-1 items-center gap-2 p-2.5 text-right"
               aria-label={
                 isPlaying
                   ? `${t("audio.pause")} ${s.name}`
@@ -137,7 +184,7 @@ export function SurahListView({
                   )}
                 </div>
                 <span className="text-[10px] text-muted">
-                  {s.ayahCount} {t("audio.ayahCount", { count: s.ayahCount })}
+                  {t("audio.ayahCount", { count: s.ayahCount })}
                 </span>
               </div>
 
@@ -157,6 +204,45 @@ export function SurahListView({
                 )}
               </div>
             </button>
+
+            {/* Whole-surah download: icon → progress → size + delete */}
+            {pct !== undefined ? (
+              <span
+                className={`flex h-8 w-11 shrink-0 items-center justify-center text-[10px] font-black ${
+                  isPlaying ? "text-white/80" : "text-gold-strong"
+                }`}
+                aria-label={t("audio.downloadingPct", { pct })}
+              >
+                {pct}%
+              </span>
+            ) : downloaded ? (
+              <button
+                type="button"
+                onClick={() => void handleDeleteDownload(s.number)}
+                aria-label={`${t("audio.deleteDownload")} ${s.name}`}
+                title={t("audio.deleteDownload")}
+                className={`flex h-8 shrink-0 items-center gap-1 rounded-lg px-1.5 text-[10px] font-black ${
+                  isPlaying ? "text-white/80" : "text-gold-strong"
+                }`}
+              >
+                <Trash2 size={13} />
+                {t("audio.downloadedSize", { size: sizeMb })}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleDownload(s.number)}
+                aria-label={`${t("audio.downloadSurah")} ${s.name}`}
+                title={t("audio.downloadSurah")}
+                disabled={!currentReciter}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition active:scale-95 disabled:opacity-40 ${
+                  isPlaying ? "text-white/80" : "text-muted hover:bg-surface"
+                }`}
+              >
+                <ArrowDownToLine size={14} />
+              </button>
+            )}
+            </div>
           );
         })}
       </div>
