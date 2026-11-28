@@ -39,7 +39,7 @@ async function downloadOne(n) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const png = Buffer.from(await res.arrayBuffer());
       if (png.length <= 2048) throw new Error(`bad payload (${png.length})`);
-      const webp = await sharp(png).webp({ quality: 82, alphaQuality: 95 }).toBuffer();
+      const webp = await sharp(png).webp({ lossless: true }).toBuffer();
       if (webp[0] !== 0x52 || webp[1] !== 0x49) throw new Error("webp encode failed");
       writeFileSync(target, webp);
       return webp.length;

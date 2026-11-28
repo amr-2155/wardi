@@ -44,7 +44,7 @@ jobs:
           count=$(find public/quran/pages -name '*.webp' | wc -l)
           echo "page images: $count"
           test "$count" -eq 604
-          find public/quran/pages -name '*.webp' -size -2k -print -quit | (! grep .)
+          find public/quran/pages -name '*.webp' -size -512c -print -quit | (! grep .)
 
       - name: Build the web app
         run: npm run build

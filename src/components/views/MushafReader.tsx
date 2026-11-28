@@ -2541,6 +2541,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 height={1}
                 unoptimized
                 draggable={false}
+                fetchPriority="low"
                 aria-hidden
                 className="pointer-events-none absolute h-px w-px opacity-0"
               />
@@ -2553,6 +2554,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 height={1}
                 unoptimized
                 draggable={false}
+                fetchPriority="low"
                 aria-hidden
                 className="pointer-events-none absolute h-px w-px opacity-0"
               />
