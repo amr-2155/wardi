@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Cairo, Amiri_Quran } from "next/font/google";
+import { Cairo } from "next/font/google";
+import localFont from "next/font/local";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import "./globals.css";
 
@@ -9,9 +10,14 @@ const cairo = Cairo({
   display: "swap",
 });
 
-const amiriQuran = Amiri_Quran({
+/* Bundled official Amiri Quran (amirifont.org, OFL): the Google Fonts subset
+   breaks cursive joining whenever a letter carries a diacritic (a medial ن
+   renders in its final form), which made Quranic text look "broken". The full
+   font keeps every OpenType lookup, and bundling it removes the runtime
+   request to Google Fonts. */
+const amiriQuran = localFont({
+  src: "./fonts/AmiriQuran.woff2",
   variable: "--font-quran-var",
-  subsets: ["arabic", "latin"],
   weight: "400",
   display: "swap",
 });
