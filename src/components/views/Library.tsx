@@ -1,8 +1,8 @@
 "use client";
 
-import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, MoonStar, ScrollText, Search, Sparkles, Sunrise, Target } from "lucide-react";
-import { useDeferredValue, useMemo, useRef, useState } from "react";
-import { Card, SegmentControl } from "@/components/ui";
+import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, HeartHandshake, History, ArrowDownToLine, MoonStar, ScrollText, Search, Sparkles, Sunrise, Target } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Card, SegmentControl, Sheet } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { VerseText } from "@/components/quran";
 import { TOPICS } from "@/data/quran";
@@ -13,6 +13,11 @@ import type { Chapter, Verse, QuranSearchResult } from "@/lib/quran/types";
 import { DATASET_META } from "@/lib/quran/store";
 import { toArabicIndic } from "@/lib/quran/mushaf";
 import { refFromGlobalId } from "@/lib/quran/progress";
+import {
+  MUSHAF_QURAN_LAST_PAGE_KEY,
+  resolveQuranResumePage,
+} from "@/lib/quran/mushafSession";
+import { QURAN_DUA_REFS, SAJDA_REFS } from "@/data/quranLists";
 import { useDailyEssentials } from "@/hooks/useDailyEssentials";
 import { formatHijri, todayHijri } from "@/lib/hijri";
 import type { WardData } from "@/hooks/useWardData";
@@ -41,8 +46,23 @@ export function LibraryView({
   const [section, setSection] = useState<"search" | "bookmarks" | "index">("search");
   const [subSection, setSubSection] = useState<"verses" | "audio">("verses");
   const [indexTab, setIndexTab] = useState<"surahs" | "juz">("surahs");
+  const [duaOpen, setDuaOpen] = useState(false);
+  const [sajdaOpen, setSajdaOpen] = useState(false);
+  /* Last mushaf page the user actually read; null until mounted (the key
+     lives in localStorage, unreadable during prerender) and null when the
+     user never opened the mushaf, in which case the resume card hides. */
+  const [resumePage, setResumePage] = useState<number | null>(null);
   const sectionsRef = useRef<HTMLDivElement>(null);
   const essentials = useDailyEssentials();
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MUSHAF_QURAN_LAST_PAGE_KEY) === null) return;
+      setResumePage(resolveQuranResumePage());
+    } catch {
+      // storage unavailable; the card simply stays hidden
+    }
+  }, []);
 
   /* The input stays controlled by `query` so typing is always immediate, while
      the (heavier) result list renders from a deferred value. Keeps the field
@@ -186,6 +206,74 @@ export function LibraryView({
           />
         </div>
       </section>
+
+      {/* RESUME READING — one tap back to the last mushaf page, with the
+          whole-mushaf progress underneath. Hidden until the user has
+          actually read a page. */}
+      {resumePage !== null && (
+        <button
+          type="button"
+          onClick={() => onOpen("mushaf")}
+          className="mt-3 w-full rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
+              <History size={19} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black text-ink">{t("library.continueTitle")}</span>
+              <span className="mt-0.5 block text-[10px] leading-4 text-muted">
+                {t("library.continuePage", {
+                  page: toArabicIndic(resumePage),
+                  total: toArabicIndic(604),
+                })}
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] font-black text-gold-strong">
+              {toArabicIndic(Math.round((resumePage / 604) * 100))}٪
+            </span>
+          </span>
+          <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-surface-2">
+            <span
+              className="block h-full rounded-full bg-gold transition-[width]"
+              style={{ width: `${Math.max(2, Math.round((resumePage / 604) * 100))}%` }}
+            />
+          </span>
+        </button>
+      )}
+
+      {/* QURANIC DUAS — a list of supplications that are themselves ayahs.
+          The refs are curated; the text renders from the verified dataset. */}
+      <button
+        type="button"
+        onClick={() => setDuaOpen(true)}
+        className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
+          <HeartHandshake size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black text-ink">{t("library.duasTitle")}</span>
+          <span className="mt-0.5 block text-[10px] leading-4 text-muted">{t("library.duasSub")}</span>
+        </span>
+        <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
+      </button>
+
+      {/* TILAWA PROSTRATION — the fourteen sajda ayahs with their refs. */}
+      <button
+        type="button"
+        onClick={() => setSajdaOpen(true)}
+        className="mt-3 flex w-full items-center gap-3 rounded-[22px] border border-gold/30 bg-gold-soft p-4 text-start shadow-sm transition active:scale-[0.99]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gold text-primary-deep">
+          <ArrowDownToLine size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black text-ink">{t("library.sajdaTitle")}</span>
+          <span className="mt-0.5 block text-[10px] leading-4 text-muted">{t("library.sajdaSub")}</span>
+        </span>
+        <ChevronLeft size={16} className="shrink-0 text-gold-strong rtl:rotate-180" />
+      </button>
 
       {/* OCCASIONS RADAR — full-width entry to the Hijri occasions view. */}
       <button
@@ -451,6 +539,50 @@ export function LibraryView({
 
       {/* MINI PLAYER (global, always rendered when a track is loaded) */}
       <MiniPlayer />
+
+      <Sheet open={duaOpen} onClose={() => setDuaOpen(false)} title={t("library.duasTitle")}>
+        {quran.datasetStatus !== "verified" ? (
+          <DatasetNotice quran={quran} />
+        ) : (
+          <div className="-mx-5 flex max-h-[72dvh] flex-col gap-2.5 overflow-y-auto px-5 pb-2">
+            {QURAN_DUA_REFS.map((ref, i) => {
+              const resolved = quran.getAyah(ref);
+              if (!resolved) return null;
+              return (
+                <VerseCard
+                  key={ref}
+                  resolved={resolved}
+                  match={undefined}
+                  onClick={() => onOpenAyah(ref)}
+                  delay={Math.min(i, 10) * 40}
+                />
+              );
+            })}
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={sajdaOpen} onClose={() => setSajdaOpen(false)} title={t("library.sajdaTitle")}>
+        {quran.datasetStatus !== "verified" ? (
+          <DatasetNotice quran={quran} />
+        ) : (
+          <div className="-mx-5 flex max-h-[72dvh] flex-col gap-2.5 overflow-y-auto px-5 pb-2">
+            {SAJDA_REFS.map((ref, i) => {
+              const resolved = quran.getAyah(ref);
+              if (!resolved) return null;
+              return (
+                <VerseCard
+                  key={ref}
+                  resolved={resolved}
+                  match={undefined}
+                  onClick={() => onOpenAyah(ref)}
+                  delay={Math.min(i, 10) * 40}
+                />
+              );
+            })}
+          </div>
+        )}
+      </Sheet>
 
       <div className="mt-8 flex items-center justify-center gap-1.5 text-[10px] text-muted">
         <Clock3 size={12} />
