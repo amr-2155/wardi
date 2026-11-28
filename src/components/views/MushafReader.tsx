@@ -2350,6 +2350,47 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         style={{ paddingTop: "max(0.5rem, var(--mushaf-safe-top))" }}
       >
         <div className="relative flex h-11 items-center justify-center px-2">
+          {/* READING PROGRESS RING — the reveal direction keeps one small gold
+              ring at the head of the page while the tools are away, so the
+              reader sees how far they are without any control on screen. It
+              gives the corner back to the back button when the tools open. */}
+          {skin === "reveal" && (
+            <div
+              className={`pointer-events-none absolute inset-y-0 start-1 my-auto flex h-9 w-9 items-center justify-center transition-opacity duration-200 ${
+                chrome ? "opacity-0" : "opacity-100"
+              }`}
+              aria-label={t("mushaf.wardProgress")}
+              role="img"
+            >
+              <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90" aria-hidden>
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.5"
+                  fill="none"
+                  stroke="color-mix(in oklab, var(--mgold) 24%, transparent)"
+                  strokeWidth="2.4"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15.5"
+                  fill="none"
+                  stroke="var(--mgold)"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(Math.max(0, Math.min(100, donePct)) / 100) * 97.4} 97.4`}
+                />
+              </svg>
+              <span
+                className="absolute text-[9.5px] font-black tabular-nums"
+                style={{ color: "var(--mink)" }}
+              >
+                {toArabicIndic(Math.round(donePct))}
+              </span>
+            </div>
+          )}
+
           {/* BACK — visible only while the chrome is up; absolute, so the
               centred pill keeps the same position in both states. */}
           <button
