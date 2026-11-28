@@ -84,6 +84,7 @@ export const USER_DATA_KEYS: readonly UserDataKey[] = [
   { key: "ward:v2:mushaf:page", category: "reader", format: "string" },
   { key: "ward:v2:mushaf:quran-session", category: "reader", format: "json" },
   { key: "ward:v2:mushaf:quran-page", category: "reader", format: "string" },
+  { key: "ward:v2:mushaf:skin", category: "reader", format: "string" },
 
   // --- Locale ---
   { key: "ward:v2:locale", category: "locale", format: "string" },
