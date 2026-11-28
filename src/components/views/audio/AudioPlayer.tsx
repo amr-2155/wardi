@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play, Repeat, SkipBack, SkipForward, Timer, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { FastForward, Pause, Play, Repeat, SkipBack, SkipForward, Timer, Volume2, VolumeX, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/lib/locale";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
@@ -21,8 +21,9 @@ export function AudioPlayer() {
     player,
     playbackRate,
     repeatAyah,
+    autoNextSurah,
     sleepTimerEndsAt,
-    actions: { play, pause, seek, setVolume, mute, unmute, previous, next, setPlaybackRate, toggleRepeatAyah, setSleepTimer },
+    actions: { play, pause, seek, setVolume, mute, unmute, previous, next, setPlaybackRate, toggleRepeatAyah, toggleAutoNextSurah, setSleepTimer },
   } = useAudioPlayer();
 
   // Sleep timer menu + remaining-minutes countdown.
@@ -212,7 +213,7 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {/* Extras row: repeat ayah, playback speed, sleep timer */}
+      {/* Extras row: repeat ayah, auto next surah, playback speed, sleep timer */}
       <div className="flex items-center justify-between border-t border-line/40 pt-2">
         <button
           type="button"
@@ -226,6 +227,20 @@ export function AudioPlayer() {
         >
           <Repeat size={14} />
           {t("audio.repeatAyah")}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleAutoNextSurah}
+          aria-label={t("audio.autoNextSurah")}
+          aria-pressed={autoNextSurah}
+          title={t("audio.autoNextSurah")}
+          className={`flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-gold ${
+            autoNextSurah ? "bg-gold-soft text-gold-strong" : "text-muted hover:bg-surface"
+          }`}
+        >
+          <FastForward size={14} />
+          {t("audio.autoNextSurah")}
         </button>
 
         <button

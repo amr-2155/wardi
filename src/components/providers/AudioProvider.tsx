@@ -48,6 +48,8 @@ export interface AudioPlayerState {
   playbackRate: number;
   /** Whether each ayah replays instead of advancing (persisted). */
   repeatAyah: boolean;
+  /** Whether a finished surah rolls into the next one (persisted). */
+  autoNextSurah: boolean;
   /** Sleep timer: epoch ms when playback should pause (null = off, session-only). */
   sleepTimerEndsAt: number | null;
 }
@@ -85,6 +87,8 @@ export interface AudioPlayerActions {
   setPlaybackRate: (rate: number) => void;
   /** Toggle repeat-each-ayah mode (persisted). */
   toggleRepeatAyah: () => void;
+  /** Toggle rolling into the next surah when one finishes. */
+  toggleAutoNextSurah: () => void;
   /** Set a sleep timer in minutes (null cancels). Session-only. */
   setSleepTimer: (minutes: number | null) => void;
 }
@@ -152,6 +156,20 @@ export function AudioPlayerProvider({
   useEffect(() => {
     repeatAyahRef.current = settings.repeatAyah;
   }, [settings.repeatAyah]);
+
+  /* Auto-advance + the data it needs, readable from the onEnded callback. */
+  const autoNextSurahRef = useRef(settings.autoNextSurah);
+  useEffect(() => {
+    autoNextSurahRef.current = settings.autoNextSurah;
+  }, [settings.autoNextSurah]);
+  const selectedReciterRef = useRef(settings.selectedReciter);
+  useEffect(() => {
+    selectedReciterRef.current = settings.selectedReciter;
+  }, [settings.selectedReciter]);
+  const surahsRef = useRef(surahs);
+  useEffect(() => {
+    surahsRef.current = surahs;
+  }, [surahs]);
 
   // --- Sleep timer (session-only, never persisted) ---
   const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null);
@@ -245,6 +263,47 @@ export function AudioPlayerProvider({
       // Final verse ended — surah genuinely complete: clear saved position
       clearAudioResume();
       setResumePosition(null);
+      /* Optional continuous listening: roll straight into the next surah.
+         Repeat-ayah is intentionally not carried over; the new surah starts
+         at verse 1 like any manual selection. */
+      const finishedSurah = queue.surah;
+      const reciterId = selectedReciterRef.current;
+      const nextSurahData = surahsRef.current.find(
+        (s) => s.number === finishedSurah + 1
+      );
+      if (
+        autoNextSurahRef.current &&
+        finishedSurah < SURAH_COUNT &&
+        reciterId &&
+        nextSurahData
+      ) {
+        void (async () => {
+          try {
+            const nextQueue = await audioProvider.getSurahAudioQueue(
+              reciterId,
+              finishedSurah + 1
+            );
+            if (!nextQueue || nextQueue.tracks.length === 0) {
+              setTrack(null);
+              return;
+            }
+            const first = nextQueue.tracks[0]!;
+            setCurrentSurah(nextSurahData);
+            setVerseQueue(nextQueue);
+            setCurrentVerseIndex(0);
+            setTrack(first);
+            persistResume(finishedSurah + 1, first.ayah ?? 1);
+            const u = await resolveAudioSrc(first.url);
+            player.load(u);
+            void player.play().catch(() => {
+              setError("تعذر متابعة تشغيل السورة تلقائيًا. يرجى الضغط على زر التشغيل.");
+            });
+          } catch {
+            setTrack(null);
+          }
+        })();
+        return;
+      }
       setTrack(null);
     }
   }, [persistResume, setTrack]);
@@ -598,6 +657,10 @@ export function AudioPlayerProvider({
     setSettings((prev) => ({ ...prev, repeatAyah: !prev.repeatAyah }));
   }, []);
 
+  const toggleAutoNextSurahCb = useCallback(() => {
+    setSettings((prev) => ({ ...prev, autoNextSurah: !prev.autoNextSurah }));
+  }, []);
+
   const contextValue: AudioPlayerContextValue = {
     // State
     currentReciter,
@@ -611,6 +674,7 @@ export function AudioPlayerProvider({
     surahs,
     playbackRate: settings.playbackRate,
     repeatAyah: settings.repeatAyah,
+    autoNextSurah: settings.autoNextSurah,
     sleepTimerEndsAt,
     // Player
     player,
@@ -632,6 +696,7 @@ export function AudioPlayerProvider({
       resume: resumeCb,
       setPlaybackRate: setPlaybackRateCb,
       toggleRepeatAyah: toggleRepeatAyahCb,
+      toggleAutoNextSurah: toggleAutoNextSurahCb,
       setSleepTimer: setSleepTimerCb,
     },
   };

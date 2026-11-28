@@ -19,6 +19,8 @@ export interface AudioSettings {
   playbackRate: number;
   /** Repeat each ayah instead of advancing (memorization aid). */
   repeatAyah: boolean;
+  /** When a surah finishes, continue straight into the next one. */
+  autoNextSurah: boolean;
 }
 
 export const DEFAULTS: AudioSettings = {
@@ -28,6 +30,7 @@ export const DEFAULTS: AudioSettings = {
   volume: 0.5,
   playbackRate: 1,
   repeatAyah: false,
+  autoNextSurah: false,
 };
 
 // Namespaced keys consistent with existing ward:v2: pattern
@@ -65,6 +68,7 @@ export function loadAudioSettings(): AudioSettings {
         return r >= 0.5 && r <= 2 ? r : DEFAULTS.playbackRate;
       })(),
       repeatAyah: s.repeatAyah === true,
+      autoNextSurah: s.autoNextSurah === true,
     };
   } catch {
     return { ...DEFAULTS };
