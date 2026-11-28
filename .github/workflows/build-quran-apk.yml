@@ -82,6 +82,7 @@ jobs:
         with:
           tag_name: ci-quran-page-redesign
           name: Wardi 1.2.0 - Quran redesign preview (debug, side-by-side)
-          body: Automated debug build of the quran-page-redesign branch. Installs SIDE BY SIDE with the installed Wardi app (applicationId com.wardi.app.preview, label "Wardi Preview") - no uninstall, the installed app and its data stay untouched. To move data into the preview: Settings > export backup in the old app, then import in the preview.
+          body: "Automated debug build of the quran-page-redesign branch. Installs SIDE BY SIDE with the installed Wardi app (applicationId com.wardi.app.preview, label 'Wardi Preview') - no uninstall, the installed app and its data stay untouched. To move data into the preview - export a backup from Settings in the old app, then import it in the preview."
+
           prerelease: true
           files: wardi-1.2.0-quran-redesign-preview.apk
