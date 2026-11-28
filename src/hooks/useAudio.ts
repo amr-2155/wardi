@@ -41,6 +41,7 @@ export interface UseAudioControls {
   load: (src: string) => void;
   reload: () => void;
   stop: () => void;
+  setPlaybackRate: (rate: number) => void;
 }
 
 export interface UseAudioState {
@@ -86,6 +87,7 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
   // dependency (see the note on that effect below).
   const volumeRef = useRef(volumeVal);
   const mutedRef = useRef(mutedVal);
+  const rateRef = useRef(1);
   const srcRef = useRef(src);
 
   // Update the onEnded ref via effect (cannot update refs during render).
@@ -123,6 +125,7 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
     audio.preload = preload;
     audio.volume = volumeRef.current;
     audio.muted = mutedRef.current;
+    audio.playbackRate = rateRef.current;
     // Seed the source here as well, so a freshly created element is never
     // left without one. The dedicated src effect below cannot repair it: it
     // only runs when `src` changes, which it did not do.
@@ -255,6 +258,14 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
     if (audioRef.current) audioRef.current.muted = next;
   }, [mutedVal]);
 
+  /* Playback speed lives in a ref (same rule as volume/mute): changing it
+     must never recreate the audio element, so it is applied imperatively. */
+  const setPlaybackRate = useCallback((rate: number) => {
+    const clamped = Math.max(0.5, Math.min(3, rate));
+    rateRef.current = clamped;
+    if (audioRef.current) audioRef.current.playbackRate = clamped;
+  }, []);
+
   const mute = useCallback(() => {
     setMutedVal(true);
     if (audioRef.current) audioRef.current.muted = true;
@@ -315,6 +326,7 @@ export function useAudio(opts: UseAudioOptions = {}): UseAudioReturn {
     load,
     reload,
     stop,
+    setPlaybackRate,
   };
 }
 

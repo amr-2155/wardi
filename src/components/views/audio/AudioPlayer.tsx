@@ -1,7 +1,7 @@
 "use client";
 
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { Pause, Play, Repeat, SkipBack, SkipForward, Timer, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/lib/locale";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import { formatTime } from "@/hooks/useAudio";
@@ -19,8 +19,31 @@ export function AudioPlayer() {
     currentReciter,
     currentSurah,
     player,
-    actions: { play, pause, seek, setVolume, mute, unmute, previous, next },
+    playbackRate,
+    repeatAyah,
+    sleepTimerEndsAt,
+    actions: { play, pause, seek, setVolume, mute, unmute, previous, next, setPlaybackRate, toggleRepeatAyah, setSleepTimer },
   } = useAudioPlayer();
+
+  // Sleep timer menu + remaining-minutes countdown.
+  const [sleepOpen, setSleepOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (sleepTimerEndsAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [sleepTimerEndsAt]);
+  const sleepRemainingMin =
+    sleepTimerEndsAt === null
+      ? null
+      : Math.max(0, Math.ceil((sleepTimerEndsAt - now) / 60000));
+
+  // Speed cycles through the common recitation speeds.
+  const RATES = [1, 1.25, 1.5, 0.75];
+  const cycleRate = () => {
+    const idx = RATES.indexOf(playbackRate);
+    setPlaybackRate(RATES[(idx + 1) % RATES.length] ?? 1);
+  };
 
   // Update seek position on user drag
   const seekbarRef = useRef<HTMLButtonElement>(null);
@@ -186,6 +209,78 @@ export function AudioPlayer() {
           >
             <SkipForward size={16} />
           </button>
+        </div>
+      </div>
+
+      {/* Extras row: repeat ayah, playback speed, sleep timer */}
+      <div className="flex items-center justify-between border-t border-line/40 pt-2">
+        <button
+          type="button"
+          onClick={toggleRepeatAyah}
+          aria-label={t("audio.repeatAyah")}
+          aria-pressed={repeatAyah}
+          title={t("audio.repeatAyah")}
+          className={`flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-gold ${
+            repeatAyah ? "bg-gold-soft text-gold-strong" : "text-muted hover:bg-surface"
+          }`}
+        >
+          <Repeat size={14} />
+          {t("audio.repeatAyah")}
+        </button>
+
+        <button
+          type="button"
+          onClick={cycleRate}
+          aria-label={t("audio.playbackSpeed")}
+          title={t("audio.playbackSpeed")}
+          className="rounded-xl px-2 py-1 text-[11px] font-black text-muted hover:bg-surface focus:outline-none focus:ring-2 focus:ring-gold"
+        >
+          {playbackRate}×
+        </button>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setSleepOpen((v) => !v)}
+            aria-label={t("audio.sleepTimer")}
+            aria-expanded={sleepOpen}
+            title={t("audio.sleepTimer")}
+            className={`flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-gold ${
+              sleepTimerEndsAt !== null ? "bg-gold-soft text-gold-strong" : "text-muted hover:bg-surface"
+            }`}
+          >
+            <Timer size={14} />
+            {sleepRemainingMin !== null
+              ? t("audio.sleepRemaining", { min: sleepRemainingMin })
+              : t("audio.sleepTimer")}
+          </button>
+          {sleepOpen && (
+            <div className="absolute bottom-full end-0 z-20 mb-1 w-28 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setSleepTimer(null);
+                  setSleepOpen(false);
+                }}
+                className="block w-full px-3 py-2 text-start text-[11px] font-bold text-ink hover:bg-surface-2"
+              >
+                {t("audio.sleepOff")}
+              </button>
+              {[5, 15, 30, 45, 60].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setSleepTimer(m);
+                    setSleepOpen(false);
+                  }}
+                  className="block w-full px-3 py-2 text-start text-[11px] font-bold text-ink hover:bg-surface-2"
+                >
+                  {t("audio.sleepMin", { min: m })}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

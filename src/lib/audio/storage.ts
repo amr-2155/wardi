@@ -15,6 +15,10 @@ export interface AudioSettings {
   lastPosition: number;
   /** Volume level (0–1). */
   volume: number;
+  /** Playback speed multiplier (0.5–2). */
+  playbackRate: number;
+  /** Repeat each ayah instead of advancing (memorization aid). */
+  repeatAyah: boolean;
 }
 
 export const DEFAULTS: AudioSettings = {
@@ -22,6 +26,8 @@ export const DEFAULTS: AudioSettings = {
   lastPlayedSurah: 0,
   lastPosition: 0,
   volume: 0.5,
+  playbackRate: 1,
+  repeatAyah: false,
 };
 
 // Namespaced keys consistent with existing ward:v2: pattern
@@ -54,6 +60,11 @@ export function loadAudioSettings(): AudioSettings {
         0,
         Math.min(1, Number(s.volume) || DEFAULTS.volume)
       ),
+      playbackRate: (() => {
+        const r = Number(s.playbackRate);
+        return r >= 0.5 && r <= 2 ? r : DEFAULTS.playbackRate;
+      })(),
+      repeatAyah: s.repeatAyah === true,
     };
   } catch {
     return { ...DEFAULTS };

@@ -183,7 +183,11 @@ const FROZEN_HASHES = {
      rejected; only the intentionally-bare string preferences are exempt from
      JSON parsing. Regression-checked in scripts/test-w1.mjs. */
   "src/lib/backup.ts": "0ecdc55b75ff7344",
-  "src/hooks/useAudio.ts": "D2C19EFBDD8CBDBE",
+  /* Re-pinned 2026-11-28 (quran-page-redesign branch): added setPlaybackRate
+     for the new playback-speed control. The rate lives in a ref and is
+     applied imperatively, exactly like volume/mute, so the one-element-per-
+     hook-call invariant (test-w1 AUDIO checks) is untouched. */
+  "src/hooks/useAudio.ts": "76BCEA7066F0327F",
   /* Re-pinned 2026-10-26: hardcoded Arabic percent sign ("٪") and the
      resume-separator ("آ·") were localized via t("mushaf.percent") and
      t("adhkar.separator"), removing the unsanctioned Arabic literals that

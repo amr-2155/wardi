@@ -44,6 +44,12 @@ export interface AudioPlayerState {
   reciters: AudioReciter[];
   /** All 114 surahs */
   surahs: AudioSurah[];
+  /** Current playback speed multiplier (persisted in audio settings). */
+  playbackRate: number;
+  /** Whether each ayah replays instead of advancing (persisted). */
+  repeatAyah: boolean;
+  /** Sleep timer: epoch ms when playback should pause (null = off, session-only). */
+  sleepTimerEndsAt: number | null;
 }
 
 export interface AudioPlayerActions {
@@ -75,6 +81,12 @@ export interface AudioPlayerActions {
   stop: () => void;
   /** Resume from the saved fail-stop position (if any). */
   resume: () => void;
+  /** Set playback speed (persisted, applied to the live element). */
+  setPlaybackRate: (rate: number) => void;
+  /** Toggle repeat-each-ayah mode (persisted). */
+  toggleRepeatAyah: () => void;
+  /** Set a sleep timer in minutes (null cancels). Session-only. */
+  setSleepTimer: (minutes: number | null) => void;
 }
 
 export type AudioPlayerContextValue = AudioPlayerState & {
@@ -135,6 +147,20 @@ export function AudioPlayerProvider({
     saveAudioSettings(settings);
   }, [settings]);
 
+  // Repeat mode + saved speed, readable from the onEnded callback.
+  const repeatAyahRef = useRef(settings.repeatAyah);
+  useEffect(() => {
+    repeatAyahRef.current = settings.repeatAyah;
+  }, [settings.repeatAyah]);
+
+  // --- Sleep timer (session-only, never persisted) ---
+  const [sleepTimerEndsAt, setSleepTimerEndsAt] = useState<number | null>(null);
+  const setSleepTimerCb = useCallback((minutes: number | null) => {
+    setSleepTimerEndsAt(
+      minutes !== null && minutes > 0 ? Date.now() + minutes * 60_000 : null
+    );
+  }, []);
+
   // --- Verse queue for sequential playback ---
   const [verseQueue, setVerseQueue] = useState<AudioTrackQueue | null>(null);
   const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
@@ -184,6 +210,20 @@ export function AudioPlayerProvider({
       return;
     }
 
+    /* Memorization mode: replay the SAME verse instead of advancing. */
+    if (repeatAyahRef.current) {
+      const same = queue.tracks[currentVerseIndexRef.current];
+      if (same) {
+        void resolveAudioSrc(same.url).then((u) => {
+          player.load(u);
+          void player.play().catch(() => {
+            setError("تعذر متابعة تشغيل السورة تلقائيًا. يرجى الضغط على زر التشغيل.");
+          });
+        });
+        return;
+      }
+    }
+
     const nextIndex = nextVerseIndex(
       queue.tracks.length,
       currentVerseIndexRef.current
@@ -231,6 +271,23 @@ export function AudioPlayerProvider({
   useEffect(() => {
     currentTrackRef.current = currentTrack;
   }, [currentTrack]);
+
+  // Apply the saved speed whenever it changes (imperative; never recreates
+  // the audio element). Placed after the ref-sync effects: playerRef is
+  // written above, and reading it earlier trips the immutability rule.
+  useEffect(() => {
+    playerRef.current?.setPlaybackRate(settings.playbackRate);
+  }, [settings.playbackRate]);
+
+  // Sleep timer countdown: pause when it fires (cleanup cancels on change).
+    useEffect(() => {
+    if (sleepTimerEndsAt === null) return;
+    const id = setTimeout(() => {
+      setSleepTimerEndsAt(null);
+      playerRef.current?.pause();
+    }, Math.max(0, sleepTimerEndsAt - Date.now()));
+    return () => clearTimeout(id);
+  }, [sleepTimerEndsAt]);
 
   // --- Load reciters + surahs on mount ---
   const loadReciters = useCallback(async () => {
@@ -533,6 +590,14 @@ export function AudioPlayerProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSurah?.number]);
 
+  const setPlaybackRateCb = useCallback((rate: number) => {
+    setSettings((prev) => ({ ...prev, playbackRate: rate }));
+  }, []);
+
+  const toggleRepeatAyahCb = useCallback(() => {
+    setSettings((prev) => ({ ...prev, repeatAyah: !prev.repeatAyah }));
+  }, []);
+
   const contextValue: AudioPlayerContextValue = {
     // State
     currentReciter,
@@ -544,6 +609,9 @@ export function AudioPlayerProvider({
     // Data
     reciters,
     surahs,
+    playbackRate: settings.playbackRate,
+    repeatAyah: settings.repeatAyah,
+    sleepTimerEndsAt,
     // Player
     player,
     // Actions
@@ -562,6 +630,9 @@ export function AudioPlayerProvider({
       reset: resetCb,
       stop: stopCb,
       resume: resumeCb,
+      setPlaybackRate: setPlaybackRateCb,
+      toggleRepeatAyah: toggleRepeatAyahCb,
+      setSleepTimer: setSleepTimerCb,
     },
   };
 
