@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Wardi</string>
+    <string name="app_name">Wardi Preview</string>
     <string name="title_activity_main">Wardi</string>
     <string name="package_name">com.wardi.app</string>
     <string name="custom_url_scheme">com.wardi.app</string>

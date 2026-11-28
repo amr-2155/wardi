@@ -4,7 +4,7 @@ android {
     namespace = "com.wardi.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.wardi.app"
+        applicationId "com.wardi.app.preview"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 5

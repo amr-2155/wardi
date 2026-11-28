@@ -39,30 +39,49 @@ jobs:
       - name: Download the 604 Madani mushaf page images (WebP)
         run: node scripts/download-pages.mjs
 
+      - name: Verify all 604 page images are present
+        run: |
+          count=$(find public/quran/pages -name '*.webp' | wc -l)
+          echo "page images: $count"
+          test "$count" -eq 604
+          find public/quran/pages -name '*.webp' -size -2k -print -quit | (! grep .)
+
       - name: Build the web app
         run: npm run build
 
+      - name: Verify pages are in the static export
+        run: |
+          count=$(find out/quran/pages -name '*.webp' | wc -l)
+          echo "exported page images: $count"
+          test "$count" -eq 604
+
       - name: Sync Capacitor android project
         run: npx cap sync android
+
+      - name: Verify pages are bundled in the android assets (offline mushaf)
+        run: |
+          count=$(find android/app/src/main/assets/public/quran/pages -name '*.webp' | wc -l)
+          echo "bundled page images: $count"
+          test "$count" -eq 604
 
       - name: Assemble debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Rename APK with a friendly name
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk wardi-1.2.0-quran-redesign-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk wardi-1.2.0-quran-redesign-preview.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wardi-1.2.0-quran-redesign-debug
-          path: wardi-1.2.0-quran-redesign-debug.apk
+          name: wardi-1.2.0-quran-redesign-preview
+          path: wardi-1.2.0-quran-redesign-preview.apk
 
       - name: Attach APK to a CI pre-release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ci-quran-page-redesign
-          name: Wardi 1.2.0 - Quran page redesign (debug build)
-          body: Automated debug build of the quran-page-redesign branch. Debug key - export a backup before replacing an installed copy, then uninstall, install this APK and import the backup.
+          name: Wardi 1.2.0 - Quran redesign preview (debug, side-by-side)
+          body: Automated debug build of the quran-page-redesign branch. Installs SIDE BY SIDE with the installed Wardi app (applicationId com.wardi.app.preview, label "Wardi Preview") - no uninstall, the installed app and its data stay untouched. To move data into the preview: Settings > export backup in the old app, then import in the preview.
           prerelease: true
-          files: wardi-1.2.0-quran-redesign-debug.apk
+          files: wardi-1.2.0-quran-redesign-preview.apk
