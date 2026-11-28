@@ -652,3 +652,43 @@ input[type=number]{appearance:textfield}
   z-index:5;
 }
 .mushaf-stage:after{border-radius:10px}
+
+/* ── Quran page redesign, round 3: one combined direction ─────────────
+   Printed paper + gold frame (classic), a paper-toned single dock with a
+   labelled primary action (clean), and the same structure surviving into
+   the dark themes (OLED). */
+.mushaf-position-pill{
+  padding:.2rem .95rem .3rem;
+  border:1px solid color-mix(in oklab, var(--mgold) 34%, transparent);
+  border-radius:.9rem;
+  background:color-mix(in oklab, var(--mpaper-top) 78%, transparent);
+  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
+  box-shadow:0 6px 18px -14px color-mix(in oklab, var(--mink) 80%, transparent);
+}
+.mushaf-position-pill::after{
+  width:2.2rem;
+  margin-top:.2rem;
+  background:color-mix(in oklab, var(--mgold) 45%, transparent);
+}
+.mushaf-dock{
+  background:color-mix(in oklab, var(--mpaper-top) 90%, transparent) !important;
+  border:1px solid color-mix(in oklab, var(--mgold) 36%, transparent) !important;
+  box-shadow:0 14px 34px -20px color-mix(in oklab, var(--mink) 70%, transparent),
+             inset 0 1px 0 color-mix(in oklab, #fff 26%, transparent) !important;
+  -webkit-backdrop-filter:blur(16px) saturate(1.05);
+  backdrop-filter:blur(16px) saturate(1.05);
+}
+.mushaf-dock-btn{
+  color:color-mix(in oklab, var(--mink) 84%, transparent) !important;
+}
+.mushaf-dock-btn[data-primary]{
+  background:linear-gradient(180deg,#DCC07E,#BE9A4E) !important;
+  color:#2A2110 !important;
+  border:1px solid color-mix(in oklab, #8A6A20 45%, transparent) !important;
+  box-shadow:0 6px 14px -6px rgba(140,105,40,.55), inset 0 1px 0 rgba(255,255,255,.45) !important;
+}
+.mushaf-dock-btn[data-active]:not([data-primary]){
+  background:color-mix(in oklab, var(--mgold) 20%, transparent) !important;
+  color:var(--mgold-strong) !important;
+}

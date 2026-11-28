@@ -2378,17 +2378,6 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                 })}
               </span>
             )}
-            {info && (
-              <span
-                className="block w-full truncate text-[10px] font-bold leading-tight"
-                style={{ color: "var(--mgold-strong)" }}
-              >
-                {t("mushaf.pageOf", {
-                  page: toArabicIndic(info.page),
-                  total: toArabicIndic(data.settings.totalPages),
-                })}
-              </span>
-            )}
           </button>
 
           {/* CLOSE — puts the tools away without leaving the reader. */}
