@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { AudioReciter, AudioSurah, AudioTrack, AudioTrackQueue } from "@/lib/audio";
 import { audioProvider } from "@/lib/audio";
+import { resolveAudioSrc } from "@/lib/audio/cache";
 import { useAudio, type UseAudioResult } from "@/hooks/useAudio";
 import {
   loadAudioSettings,
@@ -192,10 +193,13 @@ export function AudioPlayerProvider({
       setTrack(nextTrack);
       setCurrentVerseIndex(nextIndex);
       persistResume(queue.surah, nextTrack.ayah ?? nextIndex + 1);
-      player.load(nextTrack.url);
-      // Auto-resume playback for continuous surah playback
-      void player.play().catch(() => {
-        setError("تعذر متابعة تشغيل السورة تلقائيًا. يرجى الضغط على زر التشغيل.");
+      // Through the bounded verse cache: a cached verse replays offline.
+      void resolveAudioSrc(nextTrack.url).then((u) => {
+        player.load(u);
+        // Auto-resume playback for continuous surah playback
+        void player.play().catch(() => {
+          setError("تعذر متابعة تشغيل السورة تلقائيًا. يرجى الضغط على زر التشغيل.");
+        });
       });
     } else {
       // Final verse ended — surah genuinely complete: clear saved position
@@ -300,9 +304,11 @@ export function AudioPlayerProvider({
       // second identical failure still leaves a valid resume point.
       verseRetryRef.current.retried = true;
       persistResume(currentSurah.number, ayah);
-      player.load(trackUrl);
-      void player.play().catch(() => {
-        // A play rejection surfaces again via player.error → fail-stop below.
+      void resolveAudioSrc(trackUrl).then((u) => {
+        player.load(u);
+        void player.play().catch(() => {
+          // A play rejection surfaces again via player.error → fail-stop below.
+        });
       });
       return;
     }
@@ -381,8 +387,8 @@ export function AudioPlayerProvider({
         setTrack(firstTrack);
         setCurrentVerseIndex(startIndex);
 
-        // Load the first verse into the player
-        player.load(firstTrack.url);
+        // Load the first verse into the player (through the verse cache).
+        void resolveAudioSrc(firstTrack.url).then((u) => player.load(u));
       } catch {
         setError(
           isOnline()

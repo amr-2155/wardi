@@ -1,10 +1,11 @@
 "use client";
 
-import { BookOpen, Database, Download, Palette, Trash2, Upload } from "lucide-react";
+import { BookOpen, Database, Download, Music, Palette, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { PrayerSettingsPanel } from "@/components/PrayerSettingsPanel";
 import { RemindersSettingsPanel } from "@/components/RemindersSettingsPanel";
 import { Card, NumberField, SectionLabel, SegmentControl, Toggle } from "@/components/ui";
+import { audioCacheStats, clearAudioCache } from "@/lib/audio/cache";
 import { useLocale } from "@/lib/locale";
 import { useAccent, type AccentId } from "@/lib/accent";
 import type { ThemeMode } from "@/lib/types";
@@ -51,7 +52,17 @@ export function SettingsView({ data }: { data: WardData }) {
   const [importStatus, setImportStatus] = useState<"applied" | ImportRejectionCode | null>(null);
   /** A validated plan awaiting the user's explicit confirmation. */
   const [pending, setPending] = useState<ImportPlan | null>(null);
+  const [audioStats, setAudioStats] = useState(() => audioCacheStats());
+  const [clearedAudio, setClearedAudio] = useState(false);
   const auto = data.settings.autoIncrease;
+
+  const handleClearAudioCache = () => {
+    void clearAudioCache().then(() => {
+      setAudioStats(audioCacheStats());
+      setClearedAudio(true);
+      window.setTimeout(() => setClearedAudio(false), 2000);
+    });
+  };
 
   const handleExport = () => {
     const blob = new Blob([data.exportJSON()], { type: "application/json" });
@@ -183,6 +194,40 @@ export function SettingsView({ data }: { data: WardData }) {
             value={data.settings.totalPages}
             onChange={(v) => data.updateSetting("totalPages", v)}
           />
+        </Card>
+      </div>
+
+      {/* AUDIO CACHE (offline replay of recently played verses) */}
+      <div className="mt-5">
+        <SectionLabel>{t("settings.audioCache.section")}</SectionLabel>
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Music size={16} className="text-gold-strong" />
+            {t("settings.audioCache.title")}
+          </div>
+          <p className="mt-1 text-[11px] leading-5 text-muted">
+            {t("settings.audioCache.desc")}
+          </p>
+          <p className="mt-2 text-xs font-black text-ink">
+            {audioStats.count === 0
+              ? t("settings.audioCache.empty")
+              : t("settings.audioCache.stats", {
+                  count: audioStats.count,
+                  size: (audioStats.bytes / 1048576).toFixed(1),
+                })}
+          </p>
+          {audioStats.count > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAudioCache}
+              className="mt-3 flex h-10 items-center gap-2 rounded-xl border border-danger/40 bg-danger-soft px-3 text-xs font-black text-danger transition active:scale-[0.98]"
+            >
+              <Trash2 size={14} />
+              {clearedAudio
+                ? t("settings.audioCache.cleared")
+                : t("settings.audioCache.clear")}
+            </button>
+          )}
         </Card>
       </div>
 

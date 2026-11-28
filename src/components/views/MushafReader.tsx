@@ -46,6 +46,7 @@ import {
 } from "@/lib/quran/readerTheme";
 import { getGlobalId, resolveAyah } from "@/lib/quran/validate";
 import { getGlobalIdOfRef } from "@/lib/quran/search";
+import { makeNormalizedIndex } from "@/lib/quran/normalize";
 import { refFromGlobalId } from "@/lib/quran/progress";
 import {
   loadLastPage,
@@ -1067,6 +1068,13 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     }
     const box = measureGlyphBox(el);
     if (box) {
+      /* Bounded cache: keep the most recent pages only, so a long reading
+         session never grows the in-memory map or the persisted copy. */
+      while (glyphCache.size >= 12) {
+        const oldest = glyphCache.keys().next().value;
+        if (oldest === undefined) break;
+        glyphCache.delete(oldest);
+      }
       glyphCache.set(pageNum, box);
       persistGlyphCache(glyphCache);
     }
@@ -1286,6 +1294,30 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
           surah: resolved?.chapter.name ?? "",
           ayah: resolved?.verse.number ?? 0,
         };
+      })
+      .filter((r) => r.page !== null);
+  }, [searchOpen, searchQuery, quran]);
+
+  /* Surah-name hits (Arabic name or latin transliteration) so typing a surah
+     name jumps straight to its first page instead of scattering verse hits. */
+  const surahSearchResults = useMemo(() => {
+    const dataset = quran.dataset;
+    const meta = quran.meta;
+    const query = searchQuery.trim();
+    if (!searchOpen || query.length < 2 || !dataset || !meta) return [];
+    const qNorm = makeNormalizedIndex(query);
+    const qLower = query.toLowerCase();
+    return dataset.chapters
+      .filter(
+        (c) =>
+          (qNorm.length > 0 && makeNormalizedIndex(c.name).includes(qNorm)) ||
+          c.transliteration.toLowerCase().includes(qLower)
+      )
+      .slice(0, 4)
+      .map((c) => {
+        const gid = getGlobalIdOfRef(`${c.id}:1`, dataset);
+        const page = gid !== null ? (meta.pageByAyah[gid - 1] ?? null) : null;
+        return { id: c.id, name: c.name, ayahCount: c.ayahCount, page };
       })
       .filter((r) => r.page !== null);
   }, [searchOpen, searchQuery, quran]);
@@ -3946,12 +3978,44 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
             />
 
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
-              {searchQuery.trim().length >= 2 && searchResults.length === 0 ? (
+              {searchQuery.trim().length >= 2 && searchResults.length === 0 && surahSearchResults.length === 0 ? (
                 <p className="py-10 text-center text-sm font-bold text-muted">
                   {t("mushaf.searchEmpty")}
                 </p>
               ) : (
                 <div className="flex flex-col gap-1.5">
+                  {surahSearchResults.length > 0 && (
+                    <>
+                      <p className="px-1 pt-1 text-[11px] font-black text-muted">
+                        {t("mushaf.searchSurahs")}
+                      </p>
+                      {surahSearchResults.map((s) => (
+                        <button
+                          key={`surah-${s.id}`}
+                          type="button"
+                          onClick={() => {
+                            setSearchOpen(false);
+                            if (s.page !== null) goTo(s.page);
+                          }}
+                          className="flex items-center justify-between gap-2 rounded-2xl border border-gold/25 bg-gold-soft/40 px-3 py-2.5 text-right transition active:scale-[0.99]"
+                        >
+                          <span className="truncate text-sm font-black text-ink">
+                            {t("mushaf.surah", { name: s.name })}
+                          </span>
+                          {s.page !== null && (
+                            <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-black text-gold-strong">
+                              {t("mushaf.indexPage", { p: toArabicIndic(s.page) })}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      {searchResults.length > 0 && (
+                        <p className="px-1 pt-1 text-[11px] font-black text-muted">
+                          {t("mushaf.searchVerses")}
+                        </p>
+                      )}
+                    </>
+                  )}
                   {searchResults.map((r) => (
                     <button
                       key={r.ref}
