@@ -12,7 +12,7 @@ import type { FullViewId } from "@/lib/types";
 import type { QuranData } from "@/hooks/useQuran";
 import type { Chapter, Verse, QuranSearchResult } from "@/lib/quran/types";
 import { DATASET_META } from "@/lib/quran/store";
-import { toArabicIndic } from "@/lib/quran/mushaf";
+import { fromArabicIndic, toArabicIndic } from "@/lib/quran/mushaf";
 import { refFromGlobalId } from "@/lib/quran/progress";
 import {
   MUSHAF_QURAN_LAST_PAGE_KEY,
@@ -78,13 +78,12 @@ export function LibraryView({
   const dailyAyah = quran.getAyah(quran.daily?.ref ?? "");
   const dailyVisible = quran.dailyReady && dailyAyah;
 
-  /* A query that is exactly an ayah reference ("2:255", "٢:٢٥٥") jumps
-     straight to that ayah instead of running a text search. Validity is
-     checked against the loaded dataset, never against the pattern alone. */
+  /* A query that is exactly an ayah reference ("2:255", also typed with
+     Eastern Arabic-Indic digits) jumps straight to that ayah instead of
+     running a text search. Validity is checked against the loaded dataset,
+     never against the pattern alone. */
   const refQuery = useMemo(() => {
-    const normalized = deferredQuery
-      .trim()
-      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+    const normalized = fromArabicIndic(deferredQuery.trim());
     const m = /^(\d{1,3})\s*[:：.\- ]\s*(\d{1,3})$/.exec(normalized);
     if (!m) return null;
     const ref = `${Number(m[1])}:${Number(m[2])}`;
@@ -249,7 +248,7 @@ export function LibraryView({
               </span>
             </span>
             <span className="shrink-0 text-[11px] font-black text-gold-strong">
-              {toArabicIndic(Math.round((resumePage / 604) * 100))}٪
+              {toArabicIndic(Math.round((resumePage / 604) * 100))}{t("mushaf.percent")}
             </span>
           </span>
           <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-surface-2">

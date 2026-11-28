@@ -34,6 +34,12 @@ export function toArabicIndic(n: number): string {
     .join("");
 }
 
+/** Eastern Arabic-Indic digits back to ASCII; other characters pass through. */
+export function fromArabicIndic(s: string): string {
+  const digits = "٠١٢٣٤٥٦٧٨٩";
+  return s.replace(/[٠-٩]/g, (d) => String(digits.indexOf(d)));
+}
+
 /** Arabic ordinal names of the 30 juz (الجزء الأول .. الثلاثون). */
 export const JUZ_ORDINALS = [
   "الأول",

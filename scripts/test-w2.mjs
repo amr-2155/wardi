@@ -171,7 +171,13 @@ const FROZEN_HASHES = {
      mushaf glyph-box caches). They are listed in STALE_KEYS so delete-all
      removes them; they are not "user data" because no parser is left to prove
      a valid shape, and a backup omits them on purpose. Covered by test-w1. */
-  "src/lib/userData.ts": "7ed74d9ac234e370",
+  /* Re-pinned 2026-11-28 (quran-page-redesign branch): the registry gained
+     ward:v2:mushaf:skin (reader design skin, a plain string preference now
+     covered by backup/export) and REGENERABLE_KEYS gained
+     wardi:audio:cache-index-v1 (offline audio cache index; rebuilds from the
+     network, excluded from backups). Covered by the A1/A2/A3 checks in
+     test-w1. */
+  "src/lib/userData.ts": "E564FEED11C02F5C",
   /* Re-pinned 2026-11-17: import validation follows the registry's declared
      format instead of demanding JSON from every key. Corrupt JSON is still
      rejected; only the intentionally-bare string preferences are exempt from
@@ -215,7 +221,12 @@ const FROZEN_HASHES = {
       same target, so remounts (including tafsir Back) keep the saved page.
       Ward-mode counting/completion/reflection semantics are unchanged, and the
       new quran-restore harness pins the behaviour. */
-  "src/components/views/MushafReader.tsx": "bef8ca218e1fb5e6",
+    /* Re-pinned 2026-11-28 (quran-page-redesign branch): offline audio cache
+     resolution at the player load sites, surah-name search hits, a bounded
+     12-page glyph cache, and the skin preference read moved to a lazy
+     initializer (lint rule on setState-in-effect). No Arabic literals added;
+     immersive behaviour covered by test-mushaf.mjs. */
+  "src/components/views/MushafReader.tsx": "6DC5D802E4D9F56B",
    /* Re-pinned 2026-11-18 (missing-change audit): a manual swipe or page flip
       no longer silently resumes auto-scroll — only the explicit Resume control
       does; a wheel/trackpad interaction pauses the same way; and completion for
