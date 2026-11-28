@@ -1,7 +1,7 @@
 "use client";
 
-import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, MoonStar, PenLine, Search, Sparkles, Sunrise, Target } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { Bookmark, BookOpen, Check, ChevronLeft, Clock3, MoonStar, ScrollText, Search, Sparkles, Sunrise, Target } from "lucide-react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { Card, SegmentControl } from "@/components/ui";
 import { DatasetNotice } from "@/components/DatasetNotice";
 import { VerseText } from "@/components/quran";
@@ -11,6 +11,8 @@ import type { FullViewId } from "@/lib/types";
 import type { QuranData } from "@/hooks/useQuran";
 import type { Chapter, Verse, QuranSearchResult } from "@/lib/quran/types";
 import { DATASET_META } from "@/lib/quran/store";
+import { toArabicIndic } from "@/lib/quran/mushaf";
+import { refFromGlobalId } from "@/lib/quran/progress";
 import { useDailyEssentials } from "@/hooks/useDailyEssentials";
 import { formatHijri, todayHijri } from "@/lib/hijri";
 import type { WardData } from "@/hooks/useWardData";
@@ -36,8 +38,10 @@ export function LibraryView({
   const hijriLabel = useMemo(() => formatHijri(todayHijri(), locale), [locale]);
   const [query, setQuery] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [section, setSection] = useState<"search" | "bookmarks">("search");
+  const [section, setSection] = useState<"search" | "bookmarks" | "index">("search");
   const [subSection, setSubSection] = useState<"verses" | "audio">("verses");
+  const [indexTab, setIndexTab] = useState<"surahs" | "juz">("surahs");
+  const sectionsRef = useRef<HTMLDivElement>(null);
   const essentials = useDailyEssentials();
 
   /* The input stays controlled by `query` so typing is always immediate, while
@@ -54,8 +58,69 @@ export function LibraryView({
   const dailyAyah = quran.getAyah(quran.daily?.ref ?? "");
   const dailyVisible = quran.dailyReady && dailyAyah;
 
+  /* A query that is exactly an ayah reference ("2:255", "٢:٢٥٥") jumps
+     straight to that ayah instead of running a text search. Validity is
+     checked against the loaded dataset, never against the pattern alone. */
+  const refQuery = useMemo(() => {
+    const normalized = deferredQuery
+      .trim()
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+    const m = /^(\d{1,3})\s*[:：.\- ]\s*(\d{1,3})$/.exec(normalized);
+    if (!m) return null;
+    const ref = `${Number(m[1])}:${Number(m[2])}`;
+    return quran.getAyah(ref) ? ref : null;
+  }, [deferredQuery, quran]);
+
+  /* Surah/juz index, derived from the bundled dataset + pagination meta.
+     Fully offline, and it invents nothing: names, counts, makkah/madinah and
+     pages all come from data the app already ships. */
+  const surahRows = useMemo(() => {
+    const ds = quran.dataset;
+    const meta = quran.meta;
+    if (!ds || !meta) return [];
+    let firstGid = 1;
+    return ds.chapters.map((c) => {
+      const row = {
+        id: c.id,
+        name: c.name,
+        ayahCount: c.ayahCount,
+        place: c.revelationPlace,
+        page: meta.pageByAyah[firstGid - 1] ?? 0,
+      };
+      firstGid += c.ayahCount;
+      return row;
+    });
+  }, [quran.dataset, quran.meta]);
+
+  const juzRows = useMemo(() => {
+    const ds = quran.dataset;
+    const meta = quran.meta;
+    if (!ds || !meta) return [];
+    const rows: { juz: number; ref: string; name: string; ayah: number; page: number }[] = [];
+    let cur = 0;
+    for (let i = 0; i < meta.juzByAyah.length; i += 1) {
+      const j = meta.juzByAyah[i];
+      if (j === cur) continue;
+      cur = j;
+      const resolved = quran.getAyah(refFromGlobalId(ds, i + 1) ?? "");
+      if (!resolved) continue;
+      rows.push({
+        juz: j,
+        ref: `${resolved.chapter.id}:${resolved.verse.number}`,
+        name: resolved.chapter.name,
+        ayah: resolved.verse.number,
+        page: meta.pageByAyah[i] ?? 0,
+      });
+    }
+    return rows;
+  }, [quran.dataset, quran.meta, quran]);
+
   const showResults = deferredQuery.trim().length > 0 || (selectedTopic && topicVerses.length > 0);
-  const listRefs = deferredQuery.trim().length > 0 ? results.map((r) => r.ref) : topicVerses;
+  const listRefs = refQuery
+    ? [refQuery]
+    : deferredQuery.trim().length > 0
+      ? results.map((r) => r.ref)
+      : topicVerses;
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-5 pb-32 animate-fade-slide-up">
@@ -110,12 +175,14 @@ export function LibraryView({
             onPress={() => onOpen("niyyah")}
           />
           <FeatureCard
-            icon={<PenLine size={19} />}
+            icon={<ScrollText size={19} />}
             tone="rose"
-            title={t("home.featureReadingTitle")}
-            subtitle={t("home.featureReadingSub")}
-            badge={data.isDone ? t("home.done") : undefined}
-            onPress={() => onOpen("reading")}
+            title={t("home.featureIndexTitle")}
+            subtitle={t("home.featureIndexSub")}
+            onPress={() => {
+              setSection("index");
+              sectionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
           />
         </div>
       </section>
@@ -161,11 +228,12 @@ export function LibraryView({
       )}
 
       {/* SECTIONS */}
-      <div className="mt-5">
-        <SegmentControl<"search" | "bookmarks">
+      <div className="mt-5" ref={sectionsRef}>
+        <SegmentControl<"search" | "bookmarks" | "index">
           options={[
             { value: "search", label: t("library.searchTab") },
             { value: "bookmarks", label: `${t("library.bookmarksTab")} (${quran.bookmarks.length})` },
+            { value: "index", label: t("library.indexTab") },
           ]}
           value={section}
           onChange={(val) => setSection(val)}
@@ -238,7 +306,7 @@ export function LibraryView({
                 so the real reason is stated first. */}
             <div className="mt-5 flex flex-col gap-2.5">
               {quran.datasetStatus !== "verified" && <DatasetNotice quran={quran} />}
-              {quran.datasetStatus === "verified" && deferredQuery.trim().length > 0 && (
+              {quran.datasetStatus === "verified" && deferredQuery.trim().length > 0 && !refQuery && (
                 <p className="text-[11px] text-muted">
                   {results.length > 0
                     ? `${results.length} ${t("library.resultsFor")} «${deferredQuery}»`
@@ -271,6 +339,79 @@ export function LibraryView({
             </div>
           </>
         )
+      ) : section === "index" ? (
+        // INDEX — surahs and juz, straight from the bundled dataset.
+        <>
+          {quran.datasetStatus !== "verified" ? (
+            <div className="mt-5">
+              <DatasetNotice quran={quran} />
+            </div>
+          ) : (
+            <>
+              <div className="mt-4">
+                <SegmentControl<"surahs" | "juz">
+                  options={[
+                    { value: "surahs", label: t("library.surahsTab") },
+                    { value: "juz", label: t("library.juzTab") },
+                  ]}
+                  value={indexTab}
+                  onChange={(val) => setIndexTab(val)}
+                />
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                {indexTab === "surahs"
+                  ? surahRows.map((c, i) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => onOpenAyah(`${c.id}:1`)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-3 text-start shadow-sm transition active:scale-[0.99] animate-fade-up"
+                        style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-[12px] font-black text-gold-strong">
+                          {toArabicIndic(c.id)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-black text-ink">{c.name}</span>
+                          <span className="mt-0.5 block text-[10px] text-muted">
+                            {t(c.place === "makkah" ? "library.makkah" : "library.madinah")}
+                            {" · "}
+                            {toArabicIndic(c.ayahCount)} {t("library.ayahsCount")}
+                            {" · "}
+                            {t("library.pageShort")} {toArabicIndic(c.page)}
+                          </span>
+                        </span>
+                        <ChevronLeft size={15} className="shrink-0 text-muted rtl:rotate-180" />
+                      </button>
+                    ))
+                  : juzRows.map((j, i) => (
+                      <button
+                        key={j.juz}
+                        type="button"
+                        onClick={() => onOpenAyah(j.ref)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-3 text-start shadow-sm transition active:scale-[0.99] animate-fade-up"
+                        style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-[12px] font-black text-primary">
+                          {toArabicIndic(j.juz)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-black text-ink">
+                            {t("library.juzLabel")} {toArabicIndic(j.juz)}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] text-muted">
+                            {t("library.startsFrom")} {j.name} · {t("library.verse")} {toArabicIndic(j.ayah)}
+                            {" · "}
+                            {t("library.pageShort")} {toArabicIndic(j.page)}
+                          </span>
+                        </span>
+                        <ChevronLeft size={15} className="shrink-0 text-muted rtl:rotate-180" />
+                      </button>
+                    ))}
+              </div>
+            </>
+          )}
+        </>
       ) : (
         // BOOKMARKS
         <>
