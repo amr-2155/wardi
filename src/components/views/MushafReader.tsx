@@ -21,6 +21,7 @@ import {
   Pause,
   Play,
   RotateCw,
+  ScrollText,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -68,6 +69,7 @@ import { useAudioPlayer } from "@/components/providers/AudioProvider";
 import { ReciterSheet } from "@/components/audio/ReciterSheet";
 import { ProgressRing } from "@/components/ProgressRing";
 import { TadabburSheet } from "@/components/TadabburSheet";
+import { PageAyahsSheet } from "@/components/views/PageAyahsSheet";
 import type { ReaderMode } from "@/components/SegmentedControl";
 import {
   loadMushafFit,
@@ -287,6 +289,7 @@ function fitGlyph(
 const GOLD = "var(--mgold)";
 const SWIPE_THRESHOLD = 60;
 const DOUBLE_TAP_MS = 300;
+const LONG_PRESS_MS = 550;
 const ADVANCE_MS = 520;
 const MAX_ZOOM = 3.5;
 const ZERO = { scale: 1, tx: 0, ty: 0 };
@@ -579,6 +582,10 @@ export function MushafReaderView({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [textSizeOpen, setTextSizeOpen] = useState(false);
   const [tafsirOpen, setTafsirOpen] = useState(false);
+  /* Long-press on the page (or the tools button) opens the page's ayah list:
+     the honest substitute for per-ayah tap while the pages are raster images
+     without a coordinates database. */
+  const [ayahsOpen, setAyahsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [reciterOpen, setReciterOpen] = useState(false);
@@ -945,6 +952,8 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
   const autoTickRef = useRef(false);
   const lastTapTime = useRef(0);
   const singleTimer = useRef<number | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
   const pillTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
@@ -1566,6 +1575,35 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     }
   }, []);
 
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  /* A held finger that never travels opens the page's ayah list instead of
+     toggling the chrome. The timer is cancelled by any real movement, by a
+     second finger, or by the finger lifting before LONG_PRESS_MS. */
+  const armLongPress = useCallback(() => {
+    clearLongPress();
+    longPressFired.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTimer.current = null;
+      const gg = gest.current;
+      if (gg.mode === "swipe" && !gg.moved && viewRef.current.scale <= 1.02) {
+        longPressFired.current = true;
+        gg.mode = "none";
+        if (singleTimer.current !== null) {
+          window.clearTimeout(singleTimer.current);
+          singleTimer.current = null;
+        }
+        tryVibrate(12);
+        setAyahsOpen(true);
+      }
+    }, LONG_PRESS_MS);
+  }, [clearLongPress]);
+
   const showChrome = useCallback(() => {
     setChrome(true);
     clearChromeTimer();
@@ -1601,6 +1639,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
 
   /* Leaving the reader must not leave a timer behind. */
   useEffect(() => clearChromeTimer, [clearChromeTimer]);
+  useEffect(() => clearLongPress, [clearLongPress]);
 
   /* No auto-hide while any sheet/menu is open. Opening a sheet also pauses the
      auto-scroll so pages don't turn underneath the overlay. */
@@ -1613,6 +1652,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     toolsOpen ||
     textSizeOpen ||
     tafsirOpen ||
+    ayahsOpen ||
     searchOpen ||
     reciterOpen ||
     themeOpen ||
@@ -1692,7 +1732,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         g.panX = x;
         g.panY = y;
         g.viewStart = { ...viewRef.current };
+        armLongPress();
       } else if (t.length === 2) {
+        clearLongPress();
         g.mode = "pinch";
         g.pinchDist = touchDist(t[0], t[1]);
         g.pinchScale = viewRef.current.scale;
@@ -1704,7 +1746,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         tryVibrate(8);
       }
     },
-    [celebration, applyViewRaw, autoScrollOn, autoPaused, isQuranMode, walkDir, endWalk],
+    [celebration, applyViewRaw, autoScrollOn, autoPaused, isQuranMode, walkDir, endWalk, armLongPress, clearLongPress],
   );
 
   const onTouchMove = useCallback(
@@ -1731,6 +1773,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         const x = t[0].clientX;
         const y = t[0].clientY;
         g.moved = true;
+        if (Math.hypot(x - g.startX, y - g.startY) > TAP_SLOP_PX) clearLongPress();
         if (viewRef.current.scale > 1.02) {
           g.mode = "pan";
           const v = clampPan({
@@ -1743,13 +1786,19 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         }
       }
     },
-    [celebration, clampPan, applyViewRaw],
+    [celebration, clampPan, applyViewRaw, clearLongPress],
   );
 
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (celebration) return;
       const g = gest.current;
+      clearLongPress();
+      if (longPressFired.current) {
+        longPressFired.current = false;
+        g.mode = "none";
+        return;
+      }
       if (g.mode === "pinch") {
         if (e.touches.length === 2) return;
         if (e.touches.length === 1) {
@@ -1798,7 +1847,7 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
         setView({ ...ZERO });
       }
     },
-    [celebration, commitView, goNextP, goPrevP, handleTap, applyViewRaw, locale],
+    [celebration, commitView, goNextP, goPrevP, handleTap, applyViewRaw, locale, clearLongPress],
   );
 
   /* Desktop/trackpad equivalent of the touch pause: any wheel interaction with
@@ -1817,8 +1866,9 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
     const g = gest.current;
     g.mode = "none";
     g.moved = false;
+    clearLongPress();
     commitView();
-  }, [commitView]);
+  }, [commitView, clearLongPress]);
 
   const finishPage = useCallback(() => {
     if (isQuranMode) {
@@ -2745,6 +2795,12 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
           quran={quran}
           onOpenAyah={handleOpenAyah}
         />
+        <PageAyahsSheet
+          open={ayahsOpen}
+          onClose={() => setAyahsOpen(false)}
+          quran={quran}
+          page={page}
+        />
 
         {/* resume card */}
         {showResume && !celebration && page !== null && info && (
@@ -3374,6 +3430,14 @@ scrollSpeed: clampValue(prev?.scrollSpeed ?? 0.15, 0.1, 1),
                     onClick={() => {
                       closeTools();
                       setTafsirOpen(true);
+                    }}
+                  />
+                  <ToolCircle
+                    icon={<ScrollText size={18} />}
+                    label={t("mushaf.pageAyahsMenu")}
+                    onClick={() => {
+                      closeTools();
+                      setAyahsOpen(true);
                     }}
                   />
                   <ToolCircle
