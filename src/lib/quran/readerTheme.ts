@@ -55,7 +55,7 @@ export const MUSHAF_FITS: MushafFitId[] = ["page", "full", "width", "cozy", "aut
    intact (a printed mushaf, not a cropped screenshot), so the default fit is
    "page". "full" stays available in the appearance sheet for edge-to-edge
    immersive reading, and a stored choice is never rewritten. */
-export const DEFAULT_MUSHAF_FIT: MushafFitId = "page";
+export const DEFAULT_MUSHAF_FIT: MushafFitId = "auto";
 
 export function loadMushafFit(): MushafFitId {
   try {

@@ -1035,8 +1035,15 @@ input[type=number]{appearance:textfield}
 .mushaf-reader[data-skin=reveal] footer.opacity-100 .mushaf-dock > *:nth-child(3){transition-delay:.14s}
 .mushaf-reader[data-skin=reveal] footer.opacity-100 .mushaf-dock > *:nth-child(4){transition-delay:.19s}
 .mushaf-reader[data-skin=reveal] footer.opacity-100 .mushaf-dock > *:nth-child(5){transition-delay:.24s}
+/* The transparent header and footer let the page reach the whole screen. */
+.mushaf-reader[data-skin=reveal] main{
+  padding-top:0 !important;
+  padding-bottom:0 !important;
+}
 .mushaf-reader[data-skin=reveal] .mushaf-page-number{
   background:color-mix(in oklab, var(--mpaper-top) 90%, transparent) !important;
   border-color:color-mix(in oklab, var(--mgold) 34%, transparent) !important;
   translate:0 -2.1rem;
+  line-height:1 !important;
+  padding:0 .6rem 6px !important;
 }
