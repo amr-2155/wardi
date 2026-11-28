@@ -313,6 +313,20 @@ input[type=number]{appearance:textfield}
 .mushaf-reader[data-mushaf-theme=dark]{--mpaper-top:#262220;--mpaper-bot:#171412;--mvignette:#00000042;--mink:#ece7dc;--mmuted:#ece7dc9e;--mgold:#d7b873;--mgold-strong:#e8cf93;--mbar:#0a0a0adb;--mbar-border:#d7b8734d;--mbtn-border:#ffffff29;--mimg-filter:invert(.92) hue-rotate(180deg) saturate(.75) brightness(1.05);--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}
 .mushaf-reader[data-mushaf-theme=midnight]{--mpaper-top:#000;--mpaper-bot:#000;--mvignette:#00000000;--mink:#f2efe4;--mmuted:#f2efe4a6;--mgold:#e3c078;--mgold-strong:#f0d69a;--mbar:#000000e6;--mbar-border:#e3c07855;--mbtn-border:#ffffff2e;--mimg-filter:invert(.95) hue-rotate(180deg) saturate(.7) brightness(1.08);--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}
 
+/* Sheets rendered inside the reader (ayah menu, tafsir, reciter, jump,
+   bookmarks...) follow the reader's own night themes instead of the app
+   theme: remap the app tokens to the mushaf dark/gold palette. Light mushaf
+   themes keep the app tokens untouched. */
+.mushaf-reader[data-mushaf-theme=dark],.mushaf-reader[data-mushaf-theme=midnight]{
+  --ink:var(--mink);--ink-2:var(--mink);--muted:var(--mmuted);
+  --line:#f2efe417;--line-2:#f2efe42b;
+  --primary:#3a2e16;--primary-deep:#2c2312;--primary-soft:#2c2413;--primary-hover:#463719;--primary-ink:var(--mgold-strong);
+  --gold:var(--mgold);--gold-strong:var(--mgold-strong);--gold-soft:#2a2212;--gold-hover:var(--mgold);
+  --danger:#e06052;--danger-soft:#3a211e;--success:#4d9e70;--success-soft:#1c352a;--info:#5fa3d9;--info-soft:#212f42;
+}
+.mushaf-reader[data-mushaf-theme=dark]{--bg:#171412;--surface:#211d19;--surface-2:#2b2620;--surface-3:#352e26}
+.mushaf-reader[data-mushaf-theme=midnight]{--bg:#000;--surface:#161310;--surface-2:#201b16;--surface-3:#2a241c}
+
 .mushaf-stage{background:linear-gradient(180deg, var(--mpaper-top), var(--mpaper-bot))}
 
 /* ==========================================================================
